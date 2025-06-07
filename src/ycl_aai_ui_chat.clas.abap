@@ -8,6 +8,14 @@ CLASS ycl_aai_ui_chat DEFINITION
 
     TYPES ty_html_t TYPE STANDARD TABLE OF ty_html WITH DEFAULT KEY.
 
+    TYPES: BEGIN OF ty_chat_message_s,
+             role     TYPE string,
+             content  TYPE string,
+             datetime TYPE string,
+           END OF ty_chat_message_s.
+
+    TYPES ty_messages_t TYPE STANDARD TABLE OF ty_chat_message_s WITH DEFAULT KEY.
+
     DATA: mo_dock        TYPE REF TO cl_gui_docking_container,
           mo_splitter    TYPE REF TO cl_gui_splitter_container,
           mo_html_viewer TYPE REF TO cl_gui_html_viewer,
@@ -37,7 +45,22 @@ CLASS ycl_aai_ui_chat DEFINITION
 
     DATA: _ollama TYPE REF TO yif_aai_ollama.
 
+    DATA: _chat_messages_t TYPE ty_messages_t.
+
     METHODS _render.
+
+    METHODS _get_html
+      IMPORTING
+                i_add_typing_animation TYPE abap_bool DEFAULT abap_false
+      RETURNING VALUE(rt_html)         TYPE ty_html_t.
+
+    METHODS _get_css
+      RETURNING VALUE(rt_css) TYPE ty_html_t.
+
+    METHODS _get_chat_messages
+      IMPORTING
+                i_add_typing_animation TYPE abap_bool DEFAULT abap_false
+      RETURNING VALUE(rt_html)         TYPE ty_html_t.
 
 ENDCLASS.
 
@@ -52,14 +75,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    APPEND '<html><body>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '<div id="content"></div>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '<script>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND 'var markdown = "## ABAP AI Chat\n\nRendered by **marked**.";' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND 'document.getElementById("content").innerHTML = marked.parse(markdown);' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '</script>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '</body></html>' && cl_abap_char_utilities=>newline TO me->mt_html.
+    me->mt_html = me->_get_html( ).
 
   ENDMETHOD.
 
@@ -103,6 +119,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
         parent            = me->mo_dock
         rows              = 3
         columns           = 1
+        left              = 5
       EXCEPTIONS
         cntl_error        = 1
         cntl_system_error = 2
@@ -133,7 +150,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     me->mo_splitter->set_row_height(
       EXPORTING
         id                = 3                 " Row ID
-        height            = 15
+        height            = 5
       EXCEPTIONS
         cntl_error        = 0
         cntl_system_error = 0
@@ -178,9 +195,19 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
         OTHERS                 = 0
     ).
 
+    me->mo_textedit->set_toolbar_mode(
+      EXPORTING
+        toolbar_mode           = 0            " visibility of toolbar; eq 0: OFF ; ne 0: ON
+      EXCEPTIONS
+        error_cntl_call_method = 0
+        invalid_parameter      = 0
+        OTHERS                 = 0
+    ).
+
     CREATE OBJECT me->mo_toolbar
       EXPORTING
         parent             = lo_toolbar_container                  " Container name
+        align_right        = cl_gui_toolbar=>align_at_right
       EXCEPTIONS
         cntl_install_error = 1
         cntl_error         = 2
@@ -194,15 +221,15 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     me->mo_toolbar->add_button(
       EXPORTING
         fcode            = 'ASK'                     " Function Code Associated with Button
-        icon             = icon_helpassistent_on     " Icon Name Defined Like "@0a@"
+        icon             = icon_trend_up             " Icon Name Defined Like "@0a@"
 *       is_disabled      =                           " Button Status
         butn_type        = 0                         " Button Types Defined in CNTB
         text             = 'Ask'                     " Text Shown to the Right of the Image
 *       quickinfo        =                           " Purpose of Button Text
       EXCEPTIONS
-        cntl_error       = 1                " Error in CFW Call
-        cntb_btype_error = 2                " Bottle Button Type
-        cntb_error_fcode = 3                " F Code is not Unique
+        cntl_error       = 1
+        cntb_btype_error = 2
+        cntb_error_fcode = 3
         OTHERS           = 4
     ).
 
@@ -247,6 +274,10 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     mo_html_viewer->show_url( l_assigned ).
 
+    me->mo_textedit->set_textstream( space ).
+
+    cl_gui_cfw=>flush( ).
+
   ENDMETHOD.
 
   METHOD on_function_selected.
@@ -264,29 +295,53 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " Clear user's question
+    me->mo_textedit->set_textstream( space ).
+
+    cl_gui_cfw=>flush( ).
+
+    APPEND VALUE #( role = 'user'
+                    content = l_user_question
+                    datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
+
+    FREE me->mt_html.
+
+    " Get new HTML with the last user question and a 'LLM typing' animation
+    me->mt_html = me->_get_html( i_add_typing_animation = abap_true ).
+
+    l_url = me->m_url.
+
+    mo_html_viewer->load_data(
+      EXPORTING
+        url          = l_url
+      IMPORTING
+        assigned_url = l_assigned
+      CHANGING
+        data_table   = me->mt_html
+    ).
+
+    " Update the chat to show the last user question
+    mo_html_viewer->show_url( l_assigned ).
+
+    cl_gui_cfw=>flush( ).
+
+
+    " Call LLM Chat API
     me->_ollama->chat(
       EXPORTING
         i_message    = l_user_question
       IMPORTING
+        e_response   = l_response
         e_t_response = DATA(lt_response)
     ).
 
+    APPEND VALUE #( role = 'assistant'
+                    content = l_response
+                    datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
+
     FREE me->mt_html.
 
-    APPEND '<html><body>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '<div id="content"></div>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '<div id="footer"></div>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '<script>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND 'var markdown = "";' && cl_abap_char_utilities=>newline TO me->mt_html.
-    LOOP AT lt_response ASSIGNING FIELD-SYMBOL(<l_response>).
-      APPEND 'markdown = markdown + "\n" + ' && /ui2/cl_json=>serialize( <l_response> ) && ';' && cl_abap_char_utilities=>newline TO me->mt_html.
-    ENDLOOP.
-    APPEND 'document.getElementById("content").innerHTML = marked.parse(markdown);' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND 'const myElement = document.getElementById("footer");' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND 'myElement.scrollIntoView({behavior: "smooth"});' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '</script>' && cl_abap_char_utilities=>newline TO me->mt_html.
-    APPEND '</body></html>' && cl_abap_char_utilities=>newline TO me->mt_html.
+    me->mt_html = me->_get_html( ).
 
     l_url = me->m_url.
 
@@ -306,6 +361,292 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
   METHOD set_ollama.
 
     me->_ollama = io_ollama.
+
+  ENDMETHOD.
+
+  METHOD _get_css.
+
+    FREE rt_css.
+
+    APPEND '<style>' TO rt_css.
+    APPEND '/* General Body and Font Styles */' TO rt_css.
+    APPEND '    body {' TO rt_css.
+    APPEND '        font-family: ''Segoe UI'', Tahoma, Geneva, Verdana, sans-serif;' TO rt_css.
+    APPEND '        /* A system font that looks native on Windows */' TO rt_css.
+    APPEND '        margin: 0;' TO rt_css.
+    APPEND '        padding: 10px;' TO rt_css.
+    APPEND '        /* Overall padding around the message area */' TO rt_css.
+    APPEND '        background-color: #f0f2f5;' TO rt_css.
+    APPEND '        /* Very light grey background for a clean base */' TO rt_css.
+    APPEND '        color: #333;' TO rt_css.
+    APPEND '        /* Dark grey for general text for good contrast */' TO rt_css.
+    APPEND '        line-height: 1.45;' TO rt_css.
+    APPEND '        /* Enhances readability by adding space between lines */' TO rt_css.
+    APPEND '        font-size: 0.9em;' TO rt_css.
+    APPEND '        /* Slightly reduced base font size to fit more content in the narrow window */' TO rt_css.
+    APPEND '        box-sizing: border-box;' TO rt_css.
+    APPEND '        /* Crucial: Includes padding and border in element''s total width/height */' TO rt_css.
+    APPEND '        overflow-y: auto;' TO rt_css.
+    APPEND '        /* Enable vertical scrolling if content overflows */' TO rt_css.
+    APPEND '        height: 100vh;' TO rt_css.
+    APPEND '        /* Ensure the body takes full viewport height for proper scrolling */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    /* Message Container: Flexbox for vertical stacking */' TO rt_css.
+    APPEND '    .message-container {' TO rt_css.
+    APPEND '        display: flex;' TO rt_css.
+    APPEND '        flex-direction: column;' TO rt_css.
+    APPEND '        gap: 15px;' TO rt_css.
+    APPEND '        /* Spacing between individual messages */' TO rt_css.
+    APPEND '        max-width: 100%;' TO rt_css.
+    APPEND '        /* Ensures the container doesn''t overflow its parent */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    /* Individual Message Styles */' TO rt_css.
+    APPEND '    .message {' TO rt_css.
+    APPEND '        display: flex;' TO rt_css.
+    APPEND '        flex-direction: column;' TO rt_css.
+    APPEND '        max-width: 100%;' TO rt_css.
+    APPEND '        /* Each message takes full available width */' TO rt_css.
+    APPEND '        /* Default alignment for LLM messages (align-items: flex-start) */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    /* Message Bubble Styling */' TO rt_css.
+    APPEND '    .message-bubble {' TO rt_css.
+    APPEND '        padding: 10px 14px;' TO rt_css.
+    APPEND '        border-radius: 18px;' TO rt_css.
+    APPEND '        /* Smoothly rounded corners for a modern chat look */' TO rt_css.
+    APPEND '        max-width: calc(100% - 40px);' TO rt_css.
+    APPEND '        /* Limits bubble width, leaving space on the opposite side */' TO rt_css.
+    APPEND '        word-wrap: break-word;' TO rt_css.
+    APPEND '        /* Prevents long words/URLs from overflowing */' TO rt_css.
+    APPEND '        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);' TO rt_css.
+    APPEND '        /* Subtle shadow for depth */' TO rt_css.
+    APPEND '        position: relative;' TO rt_css.
+    APPEND '        /* Needed for any future additions like small "tail" elements */' TO rt_css.
+    APPEND '        min-width: 300px;' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .message-bubble p {' TO rt_css.
+    APPEND '        margin: 0;' TO rt_css.
+    APPEND '        /* Remove default paragraph margins inside the bubble */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    /* LLM (AI Assistant) Message Specific Styles */' TO rt_css.
+    APPEND '    .llm-message {' TO rt_css.
+    APPEND '        align-items: flex-start;' TO rt_css.
+    APPEND '        /* Aligns LLM messages to the left */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .llm-message .message-bubble {' TO rt_css.
+    APPEND '        background-color: #ffffff;' TO rt_css.
+    APPEND '        /* Very light blue for LLM messages */' TO rt_css.
+    APPEND '        color: #2c3e50;' TO rt_css.
+    APPEND '        /* Darker blue-grey for LLM text */' TO rt_css.
+    APPEND '        border-bottom-left-radius: 4px;' TO rt_css.
+    APPEND '        /* Slightly less rounded corner for a distinct visual cue */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    /* User Message Specific Styles */' TO rt_css.
+    APPEND '    .user-message {' TO rt_css.
+    APPEND '        align-self: flex-end;' TO rt_css.
+    APPEND '        /* Pushes the entire message block to the right */' TO rt_css.
+    APPEND '        align-items: flex-end;' TO rt_css.
+    APPEND '        /* Aligns content (bubble, timestamp) within the block to the right */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .user-message .message-bubble {' TO rt_css.
+    APPEND '        background-color: #e9eef6;' TO rt_css.
+    APPEND '        /* Soft green for user messages */' TO rt_css.
+    APPEND '        color: #2c3e50;' TO rt_css.
+    APPEND '        /* Same dark blue-grey for user text */' TO rt_css.
+    APPEND '        border-bottom-right-radius: 4px;' TO rt_css.
+    APPEND '        /* Slightly less rounded corner for a distinct visual cue */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    /* Message Timestamp */' TO rt_css.
+    APPEND '    .message-timestamp {' TO rt_css.
+    APPEND '        font-size: 0.7em;' TO rt_css.
+    APPEND '        /* Smaller font size for the timestamp */' TO rt_css.
+    APPEND '        color: #888;' TO rt_css.
+    APPEND '        /* Muted grey for timestamps */' TO rt_css.
+    APPEND '        margin-top: 4px;' TO rt_css.
+    APPEND '        /* Space between bubble and timestamp */' TO rt_css.
+    APPEND '        padding: 0 8px;' TO rt_css.
+    APPEND '        /* Horizontal padding to align with bubble content */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .user-message .message-timestamp {' TO rt_css.
+    APPEND '        text-align: right;' TO rt_css.
+    APPEND '        /* Aligns user timestamps to the right */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .llm-message .message-timestamp {' TO rt_css.
+    APPEND '        text-align: left;' TO rt_css.
+    APPEND '        /* Aligns LLM timestamps to the left */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    /* Custom Scrollbar Styles (for Webkit browsers - Chrome, Safari. May vary in SAP''s viewer) */' TO rt_css.
+    APPEND '    ::-webkit-scrollbar {' TO rt_css.
+    APPEND '        width: 8px;' TO rt_css.
+    APPEND '        /* Width of the vertical scrollbar */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    ::-webkit-scrollbar-track {' TO rt_css.
+    APPEND '        background: #e0e0e0;' TO rt_css.
+    APPEND '        /* Color of the track */' TO rt_css.
+    APPEND '        border-radius: 10px;' TO rt_css.
+    APPEND '        /* Rounded corners for the track */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    ::-webkit-scrollbar-thumb {' TO rt_css.
+    APPEND '        background: #a0a0a0;' TO rt_css.
+    APPEND '        /* Color of the scrollbar thumb */' TO rt_css.
+    APPEND '        border-radius: 10px;' TO rt_css.
+    APPEND '        /* Rounded corners for the thumb */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    ::-webkit-scrollbar-thumb:hover {' TO rt_css.
+    APPEND '        background: #777;' TO rt_css.
+    APPEND '        /* Color of the thumb on hover */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+
+    APPEND '    /* User Typing Animation */' TO rt_css.
+    APPEND '    .user-typing {' TO rt_css.
+    APPEND '        display: flex;' TO rt_css.
+    APPEND '        align-items: center;' TO rt_css.
+    APPEND '        height: 24px;' TO rt_css.
+    APPEND '        margin-right: 8px;' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .user-typing-dot {' TO rt_css.
+    APPEND '        width: 7px;' TO rt_css.
+    APPEND '        height: 7px;' TO rt_css.
+    APPEND '        margin: 0 2px;' TO rt_css.
+    APPEND '        border-radius: 50%;' TO rt_css.
+    APPEND '        background: #a0a0a0;' TO rt_css.
+    APPEND '        opacity: 0.5;' TO rt_css.
+    APPEND '        animation: userTypingBlink 1.2s infinite both;' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .user-typing-dot:nth-child(2) {' TO rt_css.
+    APPEND '        animation-delay: 0.2s;' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .user-typing-dot:nth-child(3) {' TO rt_css.
+    APPEND '        animation-delay: 0.4s;' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    @keyframes userTypingBlink {' TO rt_css.
+    APPEND '        0%, 80%, 100% { opacity: 0.5; }' TO rt_css.
+    APPEND '        40% { opacity: 1; }' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '</style>' TO rt_css.
+
+  ENDMETHOD.
+
+  METHOD _get_html.
+
+    FREE rt_html.
+
+    APPEND '<!DOCTYPE html>' TO rt_html.
+    APPEND '<html lang="en">' TO rt_html.
+
+    APPEND '<head>' TO rt_html.
+    APPEND '    <meta charset="UTF-8">' TO rt_html.
+    APPEND '    <meta name="viewport" content="width=device-width, initial-scale=1.0">' TO rt_html.
+    APPEND '    <title>ABAP AI Chat</title>' TO rt_html.
+
+    " CSS
+    APPEND LINES OF me->_get_css( ) TO rt_html.
+
+    APPEND '</head>' TO rt_html.
+    APPEND '<body>' TO rt_html.
+    APPEND '    <div style="text-align: center;">' TO rt_html.
+    APPEND '        <img src="http://192.168.1.173/aaai/abapAI.svg" alt="Ollama Logo" style="height:35px; margin-bottom:10px;">' TO rt_html.
+    APPEND '    </div>' TO rt_html.
+    APPEND '    <div class="message-container">' TO rt_html.
+
+    " Chat Messages
+    APPEND LINES OF me->_get_chat_messages( i_add_typing_animation ) TO rt_html.
+
+    APPEND '    </div>' TO rt_html.
+
+    APPEND '    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>' TO rt_html.
+
+    APPEND '    <script>' TO rt_html.
+
+    APPEND '        document.querySelectorAll(''.message.user-message .message-bubble p'').forEach(p => {' TO rt_html.
+    APPEND '            p.innerHTML = marked.parse(p.textContent);' TO rt_html.
+    APPEND '        });' TO rt_html.
+
+    APPEND '        document.querySelectorAll(''.message.llm-message .message-bubble p'').forEach(p => {' TO rt_html.
+    APPEND '            p.innerHTML = marked.parse(p.textContent);' TO rt_html.
+    APPEND '        });' TO rt_html.
+
+
+    APPEND '    const userMessages = document.querySelectorAll(''.user-message'');' TO rt_html.
+    APPEND '    if (userMessages.length > 0) {' TO rt_html.
+    APPEND '        userMessages[userMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''end'' });' TO rt_html.
+    APPEND '    }' TO rt_html.
+
+    APPEND '    const llmMessages = document.querySelectorAll(''.llm-message'');' TO rt_html.
+    APPEND '    if (llmMessages.length > 0) {' TO rt_html.
+    APPEND '        llmMessages[llmMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''end'' });' TO rt_html.
+    APPEND '    }' TO rt_html.
+
+    APPEND '    </script>' TO rt_html.
+    APPEND '</body>' TO rt_html.
+    APPEND '</html>' TO rt_html.
+
+  ENDMETHOD.
+
+  METHOD _get_chat_messages.
+
+    FREE rt_html.
+
+    LOOP AT _chat_messages_t ASSIGNING FIELD-SYMBOL(<ls_message>).
+
+      IF to_lower( <ls_message>-role ) = 'user'.
+
+        APPEND '        <div class="message user-message">' TO rt_html.
+        APPEND '            <div class="message-bubble">' TO rt_html.
+        APPEND '                <p>' && <ls_message>-content && '</p>' TO rt_html.
+        APPEND '            </div>' TO rt_html.
+        APPEND '            <div class="message-timestamp">' && <ls_message>-datetime && '</div>' TO rt_html.
+        APPEND '        </div>' TO rt_html.
+
+      ENDIF.
+
+      IF to_lower( <ls_message>-role ) = 'assistant'.
+
+        APPEND '        <div class="message llm-message">' TO rt_html.
+        APPEND '            <div class="message-bubble">' TO rt_html.
+        APPEND '                <p>' && <ls_message>-content && '</p>' TO rt_html.
+        APPEND '            </div>' TO rt_html.
+        APPEND '            <div class="message-timestamp">' && <ls_message>-datetime && '</div>' TO rt_html.
+        APPEND '        </div>' TO rt_html.
+
+      ENDIF.
+
+    ENDLOOP.
+
+    IF i_add_typing_animation = abap_true.
+
+      APPEND '        <div class="message llm-message">' TO rt_html.
+      APPEND '            <div class="message-bubble">' TO rt_html.
+      APPEND '                <div class="user-typing">' TO rt_html.
+      APPEND '                    <div class="user-typing-dot"></div>' TO rt_html.
+      APPEND '                    <div class="user-typing-dot"></div>' TO rt_html.
+      APPEND '                    <div class="user-typing-dot"></div>' TO rt_html.
+      APPEND '                </div>' TO rt_html.
+      APPEND '            </div>' TO rt_html.
+      APPEND '            <div class="message-timestamp"></div>' TO rt_html.
+      APPEND '        </div>' TO rt_html.
+
+    ENDIF.
 
   ENDMETHOD.
 
