@@ -28,24 +28,27 @@ CLASS ycl_aai_ui_chat DEFINITION
 
     METHODS constructor
       IMPORTING
-        i_t_html TYPE ty_html_t OPTIONAL.
+        i_greeting TYPE csequence OPTIONAL
+        io_api     TYPE REF TO yif_aai_chat OPTIONAL.
 
     METHODS run.
 
     METHODS on_function_selected FOR EVENT function_selected OF cl_gui_toolbar
       IMPORTING fcode.
 
-    METHODS set_ollama
+    METHODS set_api
       IMPORTING
-        io_ollama TYPE REF TO yif_aai_ollama.
+        io_api TYPE REF TO yif_aai_chat.
 
   PROTECTED SECTION.
 
   PRIVATE SECTION.
 
-    DATA: _ollama TYPE REF TO yif_aai_ollama.
+    DATA: _o_api TYPE REF TO yif_aai_chat.
 
     DATA: _chat_messages_t TYPE ty_messages_t.
+
+    DATA: _greeting TYPE string.
 
     METHODS _render.
 
@@ -62,6 +65,8 @@ CLASS ycl_aai_ui_chat DEFINITION
                 i_add_typing_animation TYPE abap_bool DEFAULT abap_false
       RETURNING VALUE(rt_html)         TYPE ty_html_t.
 
+    METHODS _handle_send_message.
+
 ENDCLASS.
 
 
@@ -70,9 +75,20 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
   METHOD constructor.
 
-    IF i_t_html IS SUPPLIED.
-      me->mt_html = i_t_html.
-      RETURN.
+    IF i_greeting IS SUPPLIED AND i_greeting IS NOT INITIAL.
+
+      me->_greeting = i_greeting.
+
+      APPEND VALUE #( role = 'assistant'
+                      content = i_greeting
+                      datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
+
+    ENDIF.
+
+    IF io_api IS SUPPLIED AND io_api IS BOUND.
+
+      me->_o_api = io_api.
+
     ENDIF.
 
     me->mt_html = me->_get_html( ).
@@ -220,11 +236,11 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     me->mo_toolbar->add_button(
       EXPORTING
-        fcode            = 'ASK'                     " Function Code Associated with Button
+        fcode            = 'SEND'                    " Function Code Associated with Button
         icon             = icon_trend_up             " Icon Name Defined Like "@0a@"
 *       is_disabled      =                           " Button Status
         butn_type        = 0                         " Button Types Defined in CNTB
-        text             = 'Ask'                     " Text Shown to the Right of the Image
+        text             = TEXT-001                  " Text Shown to the Right of the Image
 *       quickinfo        =                           " Purpose of Button Text
       EXCEPTIONS
         cntl_error       = 1
@@ -282,85 +298,23 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
   METHOD on_function_selected.
 
-    DATA: l_url           TYPE c LENGTH 250,
-          l_assigned      TYPE c LENGTH 250,
-          l_user_question TYPE string,
-          l_response      TYPE string.
+    CASE fcode.
 
-    me->mo_textedit->get_textstream( IMPORTING text = l_user_question ). ""// <-- user_question still empty
+      WHEN 'SEND'.
 
-    cl_gui_cfw=>flush( ). ""//<-- now it's not empty anymore.
+        me->_handle_send_message( ).
 
-    IF l_user_question IS INITIAL.
-      RETURN.
-    ENDIF.
+      WHEN OTHERS.
 
-    " Clear user's question
-    me->mo_textedit->set_textstream( space ).
+        RETURN.
 
-    cl_gui_cfw=>flush( ).
-
-    APPEND VALUE #( role = 'user'
-                    content = l_user_question
-                    datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
-
-    FREE me->mt_html.
-
-    " Get new HTML with the last user question and a 'LLM typing' animation
-    me->mt_html = me->_get_html( i_add_typing_animation = abap_true ).
-
-    l_url = me->m_url.
-
-    mo_html_viewer->load_data(
-      EXPORTING
-        url          = l_url
-      IMPORTING
-        assigned_url = l_assigned
-      CHANGING
-        data_table   = me->mt_html
-    ).
-
-    " Update the chat to show the last user question
-    mo_html_viewer->show_url( l_assigned ).
-
-    cl_gui_cfw=>flush( ).
-
-
-    " Call LLM Chat API
-    me->_ollama->chat(
-      EXPORTING
-        i_message    = l_user_question
-      IMPORTING
-        e_response   = l_response
-        e_t_response = DATA(lt_response)
-    ).
-
-    APPEND VALUE #( role = 'assistant'
-                    content = l_response
-                    datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
-
-    FREE me->mt_html.
-
-    me->mt_html = me->_get_html( ).
-
-    l_url = me->m_url.
-
-    mo_html_viewer->load_data(
-      EXPORTING
-        url          = l_url
-      IMPORTING
-        assigned_url = l_assigned
-      CHANGING
-        data_table   = me->mt_html
-    ).
-
-    mo_html_viewer->show_url( l_assigned ).
+    ENDCASE.
 
   ENDMETHOD.
 
-  METHOD set_ollama.
+  METHOD set_api.
 
-    me->_ollama = io_ollama.
+    me->_o_api = io_api.
 
   ENDMETHOD.
 
@@ -565,7 +519,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     APPEND '</head>' TO rt_html.
     APPEND '<body>' TO rt_html.
     APPEND '    <div style="text-align: center;">' TO rt_html.
-    APPEND '        <img src="http://192.168.1.173/aaai/abapAI.svg" alt="Ollama Logo" style="height:35px; margin-bottom:10px;">' TO rt_html.
+    APPEND '        <img src="https://christianjianelli.github.io/abapAI.svg" alt="Ollama Logo" style="height:35px; margin-bottom:10px;">' TO rt_html.
     APPEND '    </div>' TO rt_html.
     APPEND '    <div class="message-container">' TO rt_html.
 
@@ -589,12 +543,12 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     APPEND '    const userMessages = document.querySelectorAll(''.user-message'');' TO rt_html.
     APPEND '    if (userMessages.length > 0) {' TO rt_html.
-    APPEND '        userMessages[userMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''end'' });' TO rt_html.
+    APPEND '        setTimeout(() => {userMessages[userMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 500);' TO rt_html.
     APPEND '    }' TO rt_html.
 
     APPEND '    const llmMessages = document.querySelectorAll(''.llm-message'');' TO rt_html.
     APPEND '    if (llmMessages.length > 0) {' TO rt_html.
-    APPEND '        llmMessages[llmMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''end'' });' TO rt_html.
+    APPEND '        setTimeout(() => {llmMessages[llmMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 1000);' TO rt_html.
     APPEND '    }' TO rt_html.
 
     APPEND '    </script>' TO rt_html.
@@ -647,6 +601,90 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
       APPEND '        </div>' TO rt_html.
 
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD _handle_send_message.
+
+    DATA: l_url           TYPE c LENGTH 250,
+          l_assigned      TYPE c LENGTH 250,
+          l_user_question TYPE string,
+          l_response      TYPE string.
+
+    me->mo_textedit->get_textstream( IMPORTING text = l_user_question ). " <-- user_question still empty
+
+    cl_gui_cfw=>flush( ). " <-- now it's not empty anymore.
+
+    IF l_user_question IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " Clear user's question
+    me->mo_textedit->set_textstream( space ).
+
+    cl_gui_cfw=>flush( ).
+
+    APPEND VALUE #( role = 'user'
+                    content = l_user_question
+                    datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
+
+    FREE me->mt_html.
+
+    " Get new HTML with the last user question and a 'LLM typing' animation
+    me->mt_html = me->_get_html( i_add_typing_animation = abap_true ).
+
+    l_url = me->m_url.
+
+    mo_html_viewer->load_data(
+      EXPORTING
+        url          = l_url
+      IMPORTING
+        assigned_url = l_assigned
+      CHANGING
+        data_table   = me->mt_html
+    ).
+
+    " Update the chat to show the last user question
+    mo_html_viewer->show_url( l_assigned ).
+
+    cl_gui_cfw=>flush( ).
+
+    DATA(l_new_chat) = COND abap_bool( WHEN me->_greeting IS NOT INITIAL THEN abap_true ELSE abap_false ).
+
+    " Call LLM Chat API
+    me->_o_api->chat(
+      EXPORTING
+        i_message    = l_user_question
+        i_new        = l_new_chat
+        i_greeting   = me->_greeting
+      IMPORTING
+        e_response   = l_response
+        e_t_response = DATA(lt_response)
+    ).
+
+    CLEAR me->_greeting. " to make sure the greeting is added to the chat history only once
+
+    APPEND VALUE #( role = 'assistant'
+                    content = l_response
+                    datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
+
+    FREE me->mt_html.
+
+    me->mt_html = me->_get_html( ).
+
+    l_url = me->m_url.
+
+    mo_html_viewer->load_data(
+      EXPORTING
+        url          = l_url
+      IMPORTING
+        assigned_url = l_assigned
+      CHANGING
+        data_table   = me->mt_html
+    ).
+
+    mo_html_viewer->show_url( l_assigned ).
+
 
   ENDMETHOD.
 
