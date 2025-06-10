@@ -47,6 +47,11 @@ CLASS ycl_aai_ui_chat DEFINITION
       IMPORTING
         io_api TYPE REF TO yif_aai_chat.
 
+    METHODS set_popup_size
+      IMPORTING
+        i_height TYPE i
+        i_width  TYPE i.
+
   PROTECTED SECTION.
 
   PRIVATE SECTION.
@@ -56,7 +61,9 @@ CLASS ycl_aai_ui_chat DEFINITION
     DATA: _chat_messages_t TYPE ty_messages_t.
 
     DATA: _greeting     TYPE string,
-          _display_mode TYPE c LENGTH 10 VALUE mc_display_mode_dock.
+          _display_mode TYPE c LENGTH 10 VALUE mc_display_mode_dock,
+          _popup_height TYPE i VALUE 400,
+          _popup_width  TYPE i VALUE 400.
 
     METHODS _render.
 
@@ -183,27 +190,27 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
       CREATE OBJECT me->mo_dialogbox
         EXPORTING
-*         parent                      =                  " Parent container
-          width                       = 400              " Width of This Container
-          height                      = 420              " Height of This Container
-*         style                       =                  " Windows Style Attributes Applied to this Container
-*         repid                       =                  " Report to Which This Control is Linked
-*         dynnr                       =                  " Screen to Which the Control is Linked
-*         lifetime                    = lifetime_default " Lifetime
-          top                         = 10               " Top Position of Dialog Box
-          left                        = 200              " Left Position of Dialog Box
-          caption                     = text-003         " Dialog Box Caption
-*         no_autodef_progid_dynnr     =                  " Don't Autodefined Progid and Dynnr?
-*         metric                      = 0                " Metric
-*         name                        =                  " Name
+*         parent                      =                    " Parent container
+          width                       = me->_popup_width   " Width of This Container
+          height                      = me->_popup_height  " Height of This Container
+*         style                       =                    " Windows Style Attributes Applied to this Container
+*         repid                       =                    " Report to Which This Control is Linked
+*         dynnr                       =                    " Screen to Which the Control is Linked
+*         lifetime                    = lifetime_default   " Lifetime
+          top                         = 10                 " Top Position of Dialog Box
+          left                        = 200                " Left Position of Dialog Box
+          caption                     = TEXT-003           " Dialog Box Caption
+*         no_autodef_progid_dynnr     =                    " Don't Autodefined Progid and Dynnr?
+*         metric                      = 0                  " Metric
+*         name                        =                    " Name
         EXCEPTIONS
-          cntl_error                  = 1                " CNTL_ERROR
-          cntl_system_error           = 2                " CNTL_SYSTEM_ERROR
-          create_error                = 3                " CREATE_ERROR
-          lifetime_error              = 4                " LIFETIME_ERROR
-          lifetime_dynpro_dynpro_link = 5                " LIFETIME_DYNPRO_DYNPRO_LINK
-          event_already_registered    = 6                " Event Already Registered
-          error_regist_event          = 7                " Error While Registering Event
+          cntl_error                  = 1
+          cntl_system_error           = 2
+          create_error                = 3
+          lifetime_error              = 4
+          lifetime_dynpro_dynpro_link = 5
+          event_already_registered    = 6
+          error_regist_event          = 7
           OTHERS                      = 8.
 
       IF sy-subrc <> 0.
@@ -397,7 +404,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
       EXCEPTIONS
         cntl_error        = 0
         cntl_system_error = 0
-        others            = 0
+        OTHERS            = 0
     ).
 
     cl_gui_cfw=>flush( ).
@@ -609,6 +616,27 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     APPEND '        40% { opacity: 1; }' TO rt_css.
     APPEND '    }' TO rt_css.
 
+    APPEND '    pre {' TO rt_css.
+    APPEND '        background: #fff;' TO rt_css.
+    APPEND '        border-left: 3px solid #c9d5e9;' TO rt_css.
+    APPEND '        border-radius: 0 4px 4px 0;' TO rt_css.
+    APPEND '        padding: 16px;' TO rt_css.
+    APPEND '        color: #333;' TO rt_css.
+    APPEND '        font-family: ''Courier New'', Courier, monospace;' TO rt_css.
+    APPEND '        font-size: 12px;' TO rt_css.
+    APPEND '        line-height: 1.4;' TO rt_css.
+    APPEND '        overflow-x: auto;' TO rt_css.
+    APPEND '        margin: 1em 0;' TO rt_css.
+    APPEND '        box-shadow: 0 1px 3px rgba(0,0,0,0.12);' TO rt_css.
+    APPEND '        scrollbar-width: thin;' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    /* For WebKit browsers (Chrome, Safari) */' TO rt_css.
+    APPEND '    pre::-webkit-scrollbar {' TO rt_css.
+    APPEND '        height: 5px;' TO rt_css.
+    APPEND '        width: 5px;' TO rt_css.
+    APPEND '    }' TO rt_css.
+
     APPEND '</style>' TO rt_css.
 
   ENDMETHOD.
@@ -652,16 +680,15 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     APPEND '            p.innerHTML = marked.parse(p.textContent);' TO rt_html.
     APPEND '        });' TO rt_html.
 
+    APPEND '        const userMessages = document.querySelectorAll(''.user-message'');' TO rt_html.
+    APPEND '        if (userMessages.length > 0) {' TO rt_html.
+    APPEND '            setTimeout(() => {userMessages[userMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 500);' TO rt_html.
+    APPEND '        }' TO rt_html.
 
-    APPEND '    const userMessages = document.querySelectorAll(''.user-message'');' TO rt_html.
-    APPEND '    if (userMessages.length > 0) {' TO rt_html.
-    APPEND '        setTimeout(() => {userMessages[userMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 500);' TO rt_html.
-    APPEND '    }' TO rt_html.
-
-    APPEND '    const llmMessages = document.querySelectorAll(''.llm-message'');' TO rt_html.
-    APPEND '    if (llmMessages.length > 0) {' TO rt_html.
-    APPEND '        setTimeout(() => {llmMessages[llmMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 1000);' TO rt_html.
-    APPEND '    }' TO rt_html.
+    APPEND '        const llmMessages = document.querySelectorAll(''.llm-message'');' TO rt_html.
+    APPEND '        if (llmMessages.length > 0) {' TO rt_html.
+    APPEND '            setTimeout(() => {llmMessages[llmMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 1000);' TO rt_html.
+    APPEND '        }' TO rt_html.
 
     APPEND '    </script>' TO rt_html.
     APPEND '</body>' TO rt_html.
@@ -879,6 +906,13 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
            me->mo_splitter,
            me->mo_dock,
            me->mo_dialogbox.
+
+  ENDMETHOD.
+
+  METHOD set_popup_size.
+
+    me->_popup_height = i_height.
+    me->_popup_width = i_width.
 
   ENDMETHOD.
 
