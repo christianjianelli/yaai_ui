@@ -18,6 +18,18 @@
      <ENTRY>Send Message</ENTRY>
      <LENGTH>20</LENGTH>
     </item>
+    <item>
+     <ID>I</ID>
+     <KEY>002</KEY>
+     <ENTRY>Close</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>003</KEY>
+     <ENTRY>Chat</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
    </TPOOL>
   </asx:values>
  </asx:abap>

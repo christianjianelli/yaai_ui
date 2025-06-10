@@ -16,7 +16,11 @@ CLASS ycl_aai_ui_chat DEFINITION
 
     TYPES ty_messages_t TYPE STANDARD TABLE OF ty_chat_message_s WITH DEFAULT KEY.
 
+    CONSTANTS: mc_display_mode_dock   TYPE c LENGTH 10 VALUE 'DOCK',
+               mc_display_mode_dialog TYPE c LENGTH 10 VALUE 'DIALOG'.
+
     DATA: mo_dock        TYPE REF TO cl_gui_docking_container,
+          mo_dialogbox   TYPE REF TO cl_gui_dialogbox_container,
           mo_splitter    TYPE REF TO cl_gui_splitter_container,
           mo_html_viewer TYPE REF TO cl_gui_html_viewer,
           mo_textedit    TYPE REF TO cl_gui_textedit,
@@ -28,13 +32,16 @@ CLASS ycl_aai_ui_chat DEFINITION
 
     METHODS constructor
       IMPORTING
-        i_greeting TYPE csequence OPTIONAL
-        io_api     TYPE REF TO yif_aai_chat OPTIONAL.
+        i_greeting     TYPE csequence OPTIONAL
+        i_display_mode TYPE csequence DEFAULT mc_display_mode_dock
+        io_api         TYPE REF TO yif_aai_chat OPTIONAL.
 
     METHODS run.
 
     METHODS on_function_selected FOR EVENT function_selected OF cl_gui_toolbar
       IMPORTING fcode.
+
+    METHODS on_close FOR EVENT close OF cl_gui_dialogbox_container.
 
     METHODS set_api
       IMPORTING
@@ -48,7 +55,8 @@ CLASS ycl_aai_ui_chat DEFINITION
 
     DATA: _chat_messages_t TYPE ty_messages_t.
 
-    DATA: _greeting TYPE string.
+    DATA: _greeting     TYPE string,
+          _display_mode TYPE c LENGTH 10 VALUE mc_display_mode_dock.
 
     METHODS _render.
 
@@ -67,6 +75,8 @@ CLASS ycl_aai_ui_chat DEFINITION
 
     METHODS _handle_send_message.
 
+    METHODS _free.
+
 ENDCLASS.
 
 
@@ -82,6 +92,26 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
       APPEND VALUE #( role = 'assistant'
                       content = i_greeting
                       datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
+
+    ENDIF.
+
+    IF i_display_mode IS SUPPLIED.
+
+      CASE i_display_mode.
+
+        WHEN mc_display_mode_dock.
+
+          me->_display_mode = mc_display_mode_dock.
+
+        WHEN mc_display_mode_dialog.
+
+          me->_display_mode = mc_display_mode_dialog.
+
+        WHEN OTHERS.
+
+          me->_display_mode = mc_display_mode_dock. " Set Default
+
+      ENDCASE.
 
     ENDIF.
 
@@ -109,40 +139,94 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     DATA: l_url      TYPE c LENGTH 250,
           l_assigned TYPE c LENGTH 250.
 
-    IF me->mo_dock IS BOUND.
+    IF me->mo_dock IS BOUND OR me->mo_dialogbox IS BOUND.
       RETURN.
     ENDIF.
 
-    CREATE OBJECT me->mo_dock
-      EXPORTING
-        parent                      = cl_gui_container=>screen0                 " Parent container
-        side                        = cl_gui_docking_container=>dock_at_right   " Side to Which Control is Docked
-        ratio                       = 25                                        " Percentage of Screen: Takes Priority Over EXTENSION
-      EXCEPTIONS
-        cntl_error                  = 1
-        cntl_system_error           = 2
-        create_error                = 3
-        lifetime_error              = 4
-        lifetime_dynpro_dynpro_link = 5
-        OTHERS                      = 6.
+    IF me->_display_mode = mc_display_mode_dock.
 
-    IF sy-subrc <> 0.
-      RETURN.
+      CREATE OBJECT me->mo_dock
+        EXPORTING
+          parent                      = cl_gui_container=>screen0                 " Parent container
+          side                        = cl_gui_docking_container=>dock_at_right   " Side to Which Control is Docked
+          ratio                       = 25                                        " Percentage of Screen: Takes Priority Over EXTENSION
+        EXCEPTIONS
+          cntl_error                  = 1
+          cntl_system_error           = 2
+          create_error                = 3
+          lifetime_error              = 4
+          lifetime_dynpro_dynpro_link = 5
+          OTHERS                      = 6.
+
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
+      CREATE OBJECT me->mo_splitter
+        EXPORTING
+          parent            = me->mo_dock
+          rows              = 3
+          columns           = 1
+          left              = 5
+        EXCEPTIONS
+          cntl_error        = 1
+          cntl_system_error = 2
+          OTHERS            = 3.
+
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
     ENDIF.
 
-    CREATE OBJECT me->mo_splitter
-      EXPORTING
-        parent            = me->mo_dock
-        rows              = 3
-        columns           = 1
-        left              = 5
-      EXCEPTIONS
-        cntl_error        = 1
-        cntl_system_error = 2
-        OTHERS            = 3.
+    IF me->_display_mode = mc_display_mode_dialog.
 
-    IF sy-subrc <> 0.
-      RETURN.
+      CREATE OBJECT me->mo_dialogbox
+        EXPORTING
+*         parent                      =                  " Parent container
+          width                       = 400              " Width of This Container
+          height                      = 420              " Height of This Container
+*         style                       =                  " Windows Style Attributes Applied to this Container
+*         repid                       =                  " Report to Which This Control is Linked
+*         dynnr                       =                  " Screen to Which the Control is Linked
+*         lifetime                    = lifetime_default " Lifetime
+          top                         = 10               " Top Position of Dialog Box
+          left                        = 200              " Left Position of Dialog Box
+          caption                     = text-003         " Dialog Box Caption
+*         no_autodef_progid_dynnr     =                  " Don't Autodefined Progid and Dynnr?
+*         metric                      = 0                " Metric
+*         name                        =                  " Name
+        EXCEPTIONS
+          cntl_error                  = 1                " CNTL_ERROR
+          cntl_system_error           = 2                " CNTL_SYSTEM_ERROR
+          create_error                = 3                " CREATE_ERROR
+          lifetime_error              = 4                " LIFETIME_ERROR
+          lifetime_dynpro_dynpro_link = 5                " LIFETIME_DYNPRO_DYNPRO_LINK
+          event_already_registered    = 6                " Event Already Registered
+          error_regist_event          = 7                " Error While Registering Event
+          OTHERS                      = 8.
+
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
+      SET HANDLER me->on_close FOR me->mo_dialogbox.
+
+      CREATE OBJECT me->mo_splitter
+        EXPORTING
+          parent            = me->mo_dialogbox
+          rows              = 3
+          columns           = 1
+          left              = 5
+        EXCEPTIONS
+          cntl_error        = 1
+          cntl_system_error = 2
+          OTHERS            = 3.
+
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
     ENDIF.
 
     DATA(lo_html_viewer_container) = me->mo_splitter->get_container( row = 1 column = 1 ).
@@ -238,10 +322,25 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
       EXPORTING
         fcode            = 'SEND'                    " Function Code Associated with Button
         icon             = icon_trend_up             " Icon Name Defined Like "@0a@"
-*       is_disabled      =                           " Button Status
         butn_type        = 0                         " Button Types Defined in CNTB
         text             = TEXT-001                  " Text Shown to the Right of the Image
-*       quickinfo        =                           " Purpose of Button Text
+      EXCEPTIONS
+        cntl_error       = 1
+        cntb_btype_error = 2
+        cntb_error_fcode = 3
+        OTHERS           = 4
+    ).
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    me->mo_toolbar->add_button(
+      EXPORTING
+        fcode            = 'CLOSE'                   " Function Code Associated with Button
+        icon             = icon_close                " Icon Name Defined Like "@0a@"
+        butn_type        = 0                         " Button Types Defined in CNTB
+        text             = TEXT-002                  " Text Shown to the Right of the Image
       EXCEPTIONS
         cntl_error       = 1
         cntb_btype_error = 2
@@ -269,11 +368,11 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     mo_html_viewer->load_data(
         EXPORTING
-          url                    = l_url                " URL
+          url                    = l_url
         IMPORTING
-          assigned_url           = l_assigned           " URL
+          assigned_url           = l_assigned
         CHANGING
-          data_table             = me->mt_html              " data table
+          data_table             = me->mt_html
         EXCEPTIONS
           dp_invalid_parameter   = 1
           dp_error_general       = 2
@@ -292,6 +391,15 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     me->mo_textedit->set_textstream( space ).
 
+    me->mo_textedit->set_focus(
+      EXPORTING
+        control           = mo_textedit
+      EXCEPTIONS
+        cntl_error        = 0
+        cntl_system_error = 0
+        others            = 0
+    ).
+
     cl_gui_cfw=>flush( ).
 
   ENDMETHOD.
@@ -303,6 +411,10 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
       WHEN 'SEND'.
 
         me->_handle_send_message( ).
+
+      WHEN 'CLOSE'.
+
+        me->_free( ).
 
       WHEN OTHERS.
 
@@ -685,6 +797,88 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     mo_html_viewer->show_url( l_assigned ).
 
+  ENDMETHOD.
+
+  METHOD on_close.
+
+    me->_free( ).
+
+  ENDMETHOD.
+
+  METHOD _free.
+
+    IF me->mo_html_viewer IS BOUND.
+
+      me->mo_html_viewer->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_textedit IS BOUND.
+
+      me->mo_textedit->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_toolbar IS BOUND.
+
+      me->mo_toolbar->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_splitter IS BOUND.
+
+      me->mo_splitter->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_dock IS BOUND.
+
+      me->mo_dock->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_dialogbox IS BOUND.
+
+      me->mo_dialogbox->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    CLEAR: me->mo_html_viewer,
+           me->mo_textedit,
+           me->mo_toolbar,
+           me->mo_splitter,
+           me->mo_dock,
+           me->mo_dialogbox.
 
   ENDMETHOD.
 
