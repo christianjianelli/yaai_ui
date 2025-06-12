@@ -5,21 +5,24 @@ CLASS ycl_aai_ui_code_assist DEFINITION
   PUBLIC SECTION.
 
     CONSTANTS: mc_display_mode_dock   TYPE c LENGTH 10 VALUE 'DOCK',
-               mc_display_mode_dialog TYPE c LENGTH 10 VALUE 'DIALOG'.
+               mc_display_mode_dialog TYPE c LENGTH 10 VALUE 'DIALOG',
+               mc_display_mode_custom TYPE c LENGTH 10 VALUE 'CUSTOM'.
 
-    DATA: mo_dock       TYPE REF TO cl_gui_docking_container,
-          mo_dialogbox  TYPE REF TO cl_gui_dialogbox_container,
-          mo_splitter   TYPE REF TO cl_gui_splitter_container,
-          mo_abapeditor TYPE REF TO cl_gui_abapedit,
-          mo_textedit   TYPE REF TO cl_gui_textedit,
-          mo_toolbar    TYPE REF TO cl_gui_toolbar.
+    DATA: mo_dock             TYPE REF TO cl_gui_docking_container,
+          mo_dialogbox        TYPE REF TO cl_gui_dialogbox_container,
+          mo_splitter         TYPE REF TO cl_gui_splitter_container,
+          mo_abapeditor       TYPE REF TO cl_gui_abapedit,
+          mo_textedit         TYPE REF TO cl_gui_textedit,
+          mo_toolbar          TYPE REF TO cl_gui_toolbar,
+          mo_custom_container TYPE REF TO cl_gui_custom_container.
 
     DATA: mt_buffer TYPE rswsourcet.
 
     METHODS constructor
       IMPORTING
-        i_display_mode TYPE csequence DEFAULT mc_display_mode_dock
-        io_api         TYPE REF TO yif_aai_chat OPTIONAL.
+        i_display_mode      TYPE csequence DEFAULT mc_display_mode_dock
+        io_api              TYPE REF TO yif_aai_chat OPTIONAL
+        io_custom_container TYPE REF TO cl_gui_custom_container OPTIONAL.
 
     METHODS run.
 
@@ -32,6 +35,10 @@ CLASS ycl_aai_ui_code_assist DEFINITION
       IMPORTING
         io_api TYPE REF TO yif_aai_chat.
 
+    METHODS set_prompt_template
+      IMPORTING
+        io_prompt_template TYPE REF TO yif_aai_prompt_template.
+
     METHODS set_popup_size
       IMPORTING
         i_height TYPE i
@@ -42,7 +49,8 @@ CLASS ycl_aai_ui_code_assist DEFINITION
 
   PRIVATE SECTION.
 
-    DATA: _o_api TYPE REF TO yif_aai_chat.
+    DATA: _o_api             TYPE REF TO yif_aai_chat,
+          _o_prompt_template TYPE REF TO yif_aai_prompt_template.
 
     DATA: _display_mode TYPE c LENGTH 10 VALUE mc_display_mode_dock,
           _popup_height TYPE i VALUE 400,
@@ -85,6 +93,14 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
     IF io_api IS SUPPLIED AND io_api IS BOUND.
 
       me->_o_api = io_api.
+
+    ENDIF.
+
+    IF io_custom_container IS SUPPLIED AND io_custom_container IS BOUND.
+
+      me->mo_custom_container = io_custom_container.
+
+      me->_display_mode = mc_display_mode_custom.
 
     ENDIF.
 
@@ -194,6 +210,29 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
     ENDIF.
 
+    IF me->_display_mode = mc_display_mode_custom AND me->mo_custom_container IS BOUND.
+
+      CREATE OBJECT me->mo_splitter
+        EXPORTING
+          parent            = me->mo_custom_container
+          rows              = 3
+          columns           = 1
+          left              = 5
+        EXCEPTIONS
+          cntl_error        = 1
+          cntl_system_error = 2
+          OTHERS            = 3.
+
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
+    ENDIF.
+
+    IF me->mo_splitter IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
     DATA(lo_abapeditor_container) = me->mo_splitter->get_container( row = 1 column = 1 ).
 
     DATA(lo_textedit_container) = me->mo_splitter->get_container( row = 2 column = 1 ).
@@ -293,21 +332,25 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    me->mo_toolbar->add_button(
-      EXPORTING
-        fcode            = 'CLOSE'                   " Function Code Associated with Button
-        icon             = icon_close                " Icon Name Defined Like "@0a@"
-        butn_type        = 0                         " Button Types Defined in CNTB
-        text             = TEXT-002                  " Text Shown to the Right of the Image
-      EXCEPTIONS
-        cntl_error       = 1
-        cntb_btype_error = 2
-        cntb_error_fcode = 3
-        OTHERS           = 4
-    ).
+    IF me->_display_mode <> mc_display_mode_custom.
 
-    IF sy-subrc <> 0.
-      RETURN.
+      me->mo_toolbar->add_button(
+        EXPORTING
+          fcode            = 'CLOSE'                   " Function Code Associated with Button
+          icon             = icon_close                " Icon Name Defined Like "@0a@"
+          butn_type        = 0                         " Button Types Defined in CNTB
+          text             = TEXT-002                  " Text Shown to the Right of the Image
+        EXCEPTIONS
+          cntl_error       = 1
+          cntb_btype_error = 2
+          cntb_error_fcode = 3
+          OTHERS           = 4
+      ).
+
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
     ENDIF.
 
     SET HANDLER me->on_function_selected FOR me->mo_toolbar.
@@ -369,29 +412,50 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD set_prompt_template.
+
+    me->_o_prompt_template = io_prompt_template.
+
+  ENDMETHOD.
+
   METHOD _handle_send_message.
 
     DATA: l_url           TYPE c LENGTH 250,
           l_assigned      TYPE c LENGTH 250,
-          l_user_question TYPE string,
+          l_user_message  TYPE string,
+          l_message       TYPE string,
           l_response      TYPE string.
 
     IF me->mo_abapeditor IS NOT BOUND.
       RETURN.
     ENDIF.
 
-    me->mo_textedit->get_textstream( IMPORTING text = l_user_question ). " <-- user_question still empty
+    me->mo_textedit->get_textstream( IMPORTING text = l_user_message ). " <-- l_user_message still empty
 
     cl_gui_cfw=>flush( ). " <-- now it's not empty anymore.
 
-    IF l_user_question IS INITIAL.
+    IF l_user_message IS INITIAL.
       RETURN.
+    ENDIF.
+
+    l_message = l_user_message.
+
+    IF me->_o_prompt_template IS BOUND.
+
+      NEW ycl_aai_prompt( )->generate_prompt_from_template(
+        EXPORTING
+          i_o_template = me->_o_prompt_template
+          i_s_params   = VALUE yif_aai_prompt=>ty_params_basic_s( user_message = l_user_message )
+        RECEIVING
+          r_prompt     = l_message
+      ).
+
     ENDIF.
 
     " Call LLM Chat API
     me->_o_api->chat(
       EXPORTING
-        i_message    = l_user_question
+        i_message    = l_message
         i_new        = abap_true
       IMPORTING
         e_response   = l_response
