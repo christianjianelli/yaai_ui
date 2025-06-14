@@ -17,14 +17,16 @@ CLASS ycl_aai_ui_chat DEFINITION
     TYPES ty_messages_t TYPE STANDARD TABLE OF ty_chat_message_s WITH DEFAULT KEY.
 
     CONSTANTS: mc_display_mode_dock   TYPE c LENGTH 10 VALUE 'DOCK',
-               mc_display_mode_dialog TYPE c LENGTH 10 VALUE 'DIALOG'.
+               mc_display_mode_dialog TYPE c LENGTH 10 VALUE 'DIALOG',
+               mc_display_mode_custom TYPE c LENGTH 10 VALUE 'CUSTOM'.
 
-    DATA: mo_dock        TYPE REF TO cl_gui_docking_container,
-          mo_dialogbox   TYPE REF TO cl_gui_dialogbox_container,
-          mo_splitter    TYPE REF TO cl_gui_splitter_container,
-          mo_html_viewer TYPE REF TO cl_gui_html_viewer,
-          mo_textedit    TYPE REF TO cl_gui_textedit,
-          mo_toolbar     TYPE REF TO cl_gui_toolbar.
+    DATA: mo_dock             TYPE REF TO cl_gui_docking_container,
+          mo_dialogbox        TYPE REF TO cl_gui_dialogbox_container,
+          mo_splitter         TYPE REF TO cl_gui_splitter_container,
+          mo_html_viewer      TYPE REF TO cl_gui_html_viewer,
+          mo_textedit         TYPE REF TO cl_gui_textedit,
+          mo_toolbar          TYPE REF TO cl_gui_toolbar,
+          mo_custom_container TYPE REF TO cl_gui_custom_container.
 
     DATA: mt_html TYPE STANDARD TABLE OF ty_html WITH DEFAULT KEY READ-ONLY.
 
@@ -32,11 +34,12 @@ CLASS ycl_aai_ui_chat DEFINITION
 
     METHODS constructor
       IMPORTING
-        i_greeting     TYPE csequence OPTIONAL
-        i_display_mode TYPE csequence DEFAULT mc_display_mode_dock
-        io_api         TYPE REF TO yif_aai_chat OPTIONAL.
+        i_greeting          TYPE csequence OPTIONAL
+        i_display_mode      TYPE csequence DEFAULT mc_display_mode_dock
+        io_api              TYPE REF TO yif_aai_chat OPTIONAL
+        io_custom_container TYPE REF TO cl_gui_custom_container OPTIONAL.
 
-    METHODS run.
+    methods run.
 
     METHODS on_function_selected FOR EVENT function_selected OF cl_gui_toolbar
       IMPORTING fcode.
@@ -51,6 +54,8 @@ CLASS ycl_aai_ui_chat DEFINITION
       IMPORTING
         i_height TYPE i
         i_width  TYPE i.
+
+    METHODS free.
 
   PROTECTED SECTION.
 
@@ -81,8 +86,6 @@ CLASS ycl_aai_ui_chat DEFINITION
       RETURNING VALUE(rt_html)         TYPE ty_html_t.
 
     METHODS _handle_send_message.
-
-    METHODS _free.
 
 ENDCLASS.
 
@@ -125,6 +128,14 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     IF io_api IS SUPPLIED AND io_api IS BOUND.
 
       me->_o_api = io_api.
+
+    ENDIF.
+
+    IF io_custom_container IS SUPPLIED AND io_custom_container IS BOUND.
+
+      me->mo_custom_container = io_custom_container.
+
+      me->_display_mode = mc_display_mode_custom.
 
     ENDIF.
 
@@ -234,6 +245,29 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
         RETURN.
       ENDIF.
 
+    ENDIF.
+
+    IF me->_display_mode = mc_display_mode_custom AND me->mo_custom_container IS BOUND.
+
+      CREATE OBJECT me->mo_splitter
+        EXPORTING
+          parent            = me->mo_custom_container
+          rows              = 3
+          columns           = 1
+          left              = 5
+        EXCEPTIONS
+          cntl_error        = 1
+          cntl_system_error = 2
+          OTHERS            = 3.
+
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
+    ENDIF.
+
+    IF me->mo_splitter IS NOT BOUND.
+      RETURN.
     ENDIF.
 
     DATA(lo_html_viewer_container) = me->mo_splitter->get_container( row = 1 column = 1 ).
@@ -421,7 +455,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
       WHEN 'CLOSE'.
 
-        me->_free( ).
+        me->free( ).
 
       WHEN OTHERS.
 
@@ -828,11 +862,11 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
   METHOD on_close.
 
-    me->_free( ).
+    me->free( ).
 
   ENDMETHOD.
 
-  METHOD _free.
+  METHOD free.
 
     IF me->mo_html_viewer IS BOUND.
 
