@@ -44,6 +44,8 @@ CLASS ycl_aai_ui_code_assist DEFINITION
         i_height TYPE i
         i_width  TYPE i.
 
+    METHODS free.
+
 
   PROTECTED SECTION.
 
@@ -59,8 +61,6 @@ CLASS ycl_aai_ui_code_assist DEFINITION
     METHODS _render.
 
     METHODS _handle_send_message.
-
-    METHODS _free.
 
 ENDCLASS.
 
@@ -396,7 +396,7 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
       WHEN 'CLOSE'.
 
-        me->_free( ).
+        me->free( ).
 
       WHEN OTHERS.
 
@@ -502,7 +502,7 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
           l_comment_line = '"'.
 
-          <ls_response> = |<<< { condense( l_code_language ) } code sample end'|.
+          <ls_response> = |<<< { condense( l_code_language ) } code sample end|.
 
         ENDIF.
 
@@ -537,11 +537,11 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
   METHOD on_close.
 
-    me->_free( ).
+    me->free( ).
 
   ENDMETHOD.
 
-  METHOD _free.
+  METHOD free.
 
     IF me->mo_abapeditor IS BOUND.
 
