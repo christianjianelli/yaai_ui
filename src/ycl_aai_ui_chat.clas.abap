@@ -4,7 +4,7 @@ CLASS ycl_aai_ui_chat DEFINITION
 
   PUBLIC SECTION.
 
-    TYPES ty_html TYPE c LENGTH 1000.
+    TYPES ty_html TYPE c LENGTH 2000.
 
     TYPES ty_html_t TYPE STANDARD TABLE OF ty_html WITH DEFAULT KEY.
 
@@ -39,7 +39,7 @@ CLASS ycl_aai_ui_chat DEFINITION
         io_api              TYPE REF TO yif_aai_chat OPTIONAL
         io_custom_container TYPE REF TO cl_gui_custom_container OPTIONAL.
 
-    methods run.
+    METHODS run.
 
     METHODS on_function_selected FOR EVENT function_selected OF cl_gui_toolbar
       IMPORTING fcode.
@@ -867,7 +867,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     IF l_response IS INITIAL.
       "A technical issue has occurred. Please try again or contact support if the problem persists.
-      l_response = text-004.
+      l_response = TEXT-004.
     ENDIF.
 
     APPEND VALUE #( role = 'assistant'
