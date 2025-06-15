@@ -59,6 +59,12 @@ CLASS ycl_aai_ui_chat DEFINITION
         i_height TYPE i
         i_width  TYPE i.
 
+    METHODS set_logo
+      IMPORTING
+        i_logo TYPE csequence.
+
+    METHODS hide_logo.
+
     METHODS free.
 
   PROTECTED SECTION.
@@ -73,7 +79,9 @@ CLASS ycl_aai_ui_chat DEFINITION
     DATA: _greeting     TYPE string,
           _display_mode TYPE c LENGTH 10 VALUE mc_display_mode_dock,
           _popup_height TYPE i VALUE 400,
-          _popup_width  TYPE i VALUE 400.
+          _popup_width  TYPE i VALUE 400,
+          _logo         TYPE string VALUE 'https://christianjianelli.github.io/abapAI.svg',
+          _no_logo      TYPE string.
 
     METHODS _render.
 
@@ -143,8 +151,6 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
       me->_display_mode = mc_display_mode_custom.
 
     ENDIF.
-
-    me->mt_html = me->_get_html( ).
 
   ENDMETHOD.
 
@@ -411,6 +417,8 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     CALL METHOD me->mo_toolbar->set_registered_events
       EXPORTING
         events = lt_events.
+
+    me->mt_html = me->_get_html( ).
 
     mo_html_viewer->load_data(
         EXPORTING
@@ -704,7 +712,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     APPEND '</head>' TO rt_html.
     APPEND '<body>' TO rt_html.
     APPEND '    <div style="text-align: center;">' TO rt_html.
-    APPEND '        <img src="https://christianjianelli.github.io/abapAI.svg" alt="Ollama Logo" style="height:35px; margin-bottom:10px;">' TO rt_html.
+    APPEND '        <img src="' && me->_logo && '" alt="Logo" style="height:35px; margin-bottom:10px;' && me->_no_logo && '">' TO rt_html.
     APPEND '    </div>' TO rt_html.
     APPEND '    <div class="message-container">' TO rt_html.
 
@@ -981,6 +989,16 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     me->_popup_height = i_height.
     me->_popup_width = i_width.
 
+  ENDMETHOD.
+
+  METHOD hide_logo.
+
+    me->_no_logo = 'display: none;'.
+
+  ENDMETHOD.
+
+  METHOD set_logo.
+    me->_logo = i_logo.
   ENDMETHOD.
 
 ENDCLASS.
