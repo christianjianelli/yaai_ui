@@ -50,6 +50,10 @@ CLASS ycl_aai_ui_chat DEFINITION
       IMPORTING
         io_api TYPE REF TO yif_aai_chat.
 
+    METHODS set_rag
+      IMPORTING
+        io_rag TYPE REF TO yif_aai_rag.
+
     METHODS set_popup_size
       IMPORTING
         i_height TYPE i
@@ -61,7 +65,8 @@ CLASS ycl_aai_ui_chat DEFINITION
 
   PRIVATE SECTION.
 
-    DATA: _o_api TYPE REF TO yif_aai_chat.
+    DATA: _o_api TYPE REF TO yif_aai_chat,
+          _o_rag TYPE REF TO yif_aai_rag.
 
     DATA: _chat_messages_t TYPE ty_messages_t.
 
@@ -157,7 +162,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     DATA: l_url      TYPE c LENGTH 250,
           l_assigned TYPE c LENGTH 250.
 
-    IF me->mo_dock IS BOUND OR me->mo_dialogbox IS BOUND.
+    IF me->mo_splitter IS BOUND.
       RETURN.
     ENDIF.
 
@@ -471,6 +476,12 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD set_rag.
+
+    me->_o_rag = io_rag.
+
+  ENDMETHOD.
+
   METHOD _get_css.
 
     FREE rt_css.
@@ -779,16 +790,17 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
   METHOD _handle_send_message.
 
-    DATA: l_url           TYPE c LENGTH 250,
-          l_assigned      TYPE c LENGTH 250,
-          l_user_question TYPE string,
-          l_response      TYPE string.
+    DATA: l_url      TYPE c LENGTH 250,
+          l_assigned TYPE c LENGTH 250,
+          l_text     TYPE string,
+          l_content  TYPE string,
+          l_response TYPE string.
 
-    me->mo_textedit->get_textstream( IMPORTING text = l_user_question ). " <-- user_question still empty
+    me->mo_textedit->get_textstream( IMPORTING text = l_text ). " <-- l_text still empty
 
     cl_gui_cfw=>flush( ). " <-- now it's not empty anymore.
 
-    IF l_user_question IS INITIAL.
+    IF l_text IS INITIAL.
       RETURN.
     ENDIF.
 
@@ -798,7 +810,7 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     cl_gui_cfw=>flush( ).
 
     APPEND VALUE #( role = 'user'
-                    content = l_user_question
+                    content = l_text
                     datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
 
     FREE me->mt_html.
@@ -822,12 +834,28 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     cl_gui_cfw=>flush( ).
 
+    l_content = l_text.
+
+    IF me->_o_rag IS BOUND.
+
+      me->_o_rag->augment_prompt(
+        EXPORTING
+          i_prompt           = l_text
+*          i_new_context_only = abap_true
+        IMPORTING
+          e_augmented_prompt = l_content
+      ).
+
+    ENDIF.
+
+    FREE l_text.
+
     DATA(l_new_chat) = COND abap_bool( WHEN me->_greeting IS NOT INITIAL THEN abap_true ELSE abap_false ).
 
     " Call LLM Chat API
     me->_o_api->chat(
       EXPORTING
-        i_message    = l_user_question
+        i_message    = l_content
         i_new        = l_new_chat
         i_greeting   = me->_greeting
       IMPORTING
@@ -836,6 +864,11 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     ).
 
     CLEAR me->_greeting. " to make sure the greeting is added to the chat history only once
+
+    IF l_response IS INITIAL.
+      "A technical issue has occurred. Please try again or contact support if the problem persists.
+      l_response = text-004.
+    ENDIF.
 
     APPEND VALUE #( role = 'assistant'
                     content = l_response

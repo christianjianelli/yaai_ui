@@ -30,6 +30,12 @@
      <ENTRY>Chat</ENTRY>
      <LENGTH>20</LENGTH>
     </item>
+    <item>
+     <ID>I</ID>
+     <KEY>004</KEY>
+     <ENTRY>A technical issue has occurred. Please try again or contact support if the problem persists.</ENTRY>
+     <LENGTH>132</LENGTH>
+    </item>
    </TPOOL>
   </asx:values>
  </asx:abap>
