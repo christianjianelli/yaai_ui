@@ -702,48 +702,48 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
     APPEND '<html lang="en">' TO rt_html.
 
     APPEND '<head>' TO rt_html.
-    APPEND '    <meta charset="UTF-8">' TO rt_html.
-    APPEND '    <meta name="viewport" content="width=device-width, initial-scale=1.0">' TO rt_html.
-    APPEND '    <title>ABAP AI Chat</title>' TO rt_html.
+    APPEND '<meta charset="UTF-8">' TO rt_html.
+    APPEND '<meta name="viewport" content="width=device-width, initial-scale=1.0">' TO rt_html.
+    APPEND '<title>ABAP AI Chat</title>' TO rt_html.
 
     " CSS
     APPEND LINES OF me->_get_css( ) TO rt_html.
 
     APPEND '</head>' TO rt_html.
     APPEND '<body>' TO rt_html.
-    APPEND '    <div style="text-align: center;">' TO rt_html.
-    APPEND '        <img src="' && me->_logo && '" alt="Logo" style="height:35px; margin-bottom:10px;' && me->_no_logo && '">' TO rt_html.
-    APPEND '    </div>' TO rt_html.
-    APPEND '    <div class="message-container">' TO rt_html.
+    APPEND '<div style="text-align: center;">' TO rt_html.
+    APPEND '<img src="' && me->_logo && '" alt="Logo" style="height:35px; margin-bottom:10px;' && me->_no_logo && '">' TO rt_html.
+    APPEND '</div>' TO rt_html.
+    APPEND '<div class="message-container">' TO rt_html.
 
     " Chat Messages
     APPEND LINES OF me->_get_chat_messages( i_add_typing_animation ) TO rt_html.
 
-    APPEND '    </div>' TO rt_html.
+    APPEND '</div>' TO rt_html.
 
-    APPEND '    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>' TO rt_html.
+    APPEND '<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>' TO rt_html.
 
-    APPEND '    <script>' TO rt_html.
+    APPEND '<script>' TO rt_html.
 
-    APPEND '        document.querySelectorAll(''.message.user-message .message-bubble p'').forEach(p => {' TO rt_html.
-    APPEND '            p.innerHTML = marked.parse(p.textContent);' TO rt_html.
-    APPEND '        });' TO rt_html.
+    APPEND 'document.querySelectorAll(''.message.user-message .message-bubble p'').forEach(p => {' TO rt_html.
+    APPEND '  p.innerHTML = marked.parse(p.textContent);' TO rt_html.
+    APPEND '});' TO rt_html.
 
-    APPEND '        document.querySelectorAll(''.message.llm-message .message-bubble p'').forEach(p => {' TO rt_html.
-    APPEND '            p.innerHTML = marked.parse(p.textContent);' TO rt_html.
-    APPEND '        });' TO rt_html.
+    APPEND 'document.querySelectorAll(''.message.llm-message .message-bubble .markdown-content'').forEach(el => {' TO rt_html.
+    APPEND '  el.innerHTML = marked.parse(el.textContent);' TO rt_html.
+    APPEND '});' TO rt_html.
 
-    APPEND '        const userMessages = document.querySelectorAll(''.user-message'');' TO rt_html.
-    APPEND '        if (userMessages.length > 0) {' TO rt_html.
-    APPEND '            setTimeout(() => {userMessages[userMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 500);' TO rt_html.
-    APPEND '        }' TO rt_html.
+    APPEND 'const userMessages = document.querySelectorAll(''.user-message'');' TO rt_html.
+    APPEND 'if (userMessages.length > 0) {' TO rt_html.
+    APPEND '  setTimeout(() => {userMessages[userMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 500);' TO rt_html.
+    APPEND '}' TO rt_html.
 
-    APPEND '        const llmMessages = document.querySelectorAll(''.llm-message'');' TO rt_html.
-    APPEND '        if (llmMessages.length > 0) {' TO rt_html.
-    APPEND '            setTimeout(() => {llmMessages[llmMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 1000);' TO rt_html.
-    APPEND '        }' TO rt_html.
+    APPEND 'const llmMessages = document.querySelectorAll(''.llm-message'');' TO rt_html.
+    APPEND 'if (llmMessages.length > 0) {' TO rt_html.
+    APPEND '  setTimeout(() => {llmMessages[llmMessages.length - 1].scrollIntoView({ behavior: ''smooth'', block: ''start'' })}, 1000);' TO rt_html.
+    APPEND '}' TO rt_html.
 
-    APPEND '    </script>' TO rt_html.
+    APPEND '</script>' TO rt_html.
     APPEND '</body>' TO rt_html.
     APPEND '</html>' TO rt_html.
 
@@ -757,23 +757,32 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
       IF to_lower( <ls_message>-role ) = 'user'.
 
-        APPEND '        <div class="message user-message">' TO rt_html.
-        APPEND '            <div class="message-bubble">' TO rt_html.
-        APPEND '                <p>' && <ls_message>-content && '</p>' TO rt_html.
-        APPEND '            </div>' TO rt_html.
-        APPEND '            <div class="message-timestamp">' && <ls_message>-datetime && '</div>' TO rt_html.
-        APPEND '        </div>' TO rt_html.
+        APPEND '<div class="message user-message">' TO rt_html.
+        APPEND '<div class="message-bubble">' TO rt_html.
+        APPEND '<p>' && <ls_message>-content && '</p>' TO rt_html.
+        APPEND '</div>' TO rt_html.
+        APPEND '<div class="message-timestamp">' && <ls_message>-datetime && '</div>' TO rt_html.
+        APPEND '</div>' TO rt_html.
 
       ENDIF.
 
       IF to_lower( <ls_message>-role ) = 'assistant'.
 
-        APPEND '        <div class="message llm-message">' TO rt_html.
-        APPEND '            <div class="message-bubble">' TO rt_html.
-        APPEND '                <p>' && <ls_message>-content && '</p>' TO rt_html.
-        APPEND '            </div>' TO rt_html.
-        APPEND '            <div class="message-timestamp">' && <ls_message>-datetime && '</div>' TO rt_html.
-        APPEND '        </div>' TO rt_html.
+        APPEND '<div class="message llm-message">' TO rt_html.
+        APPEND '<div class="message-bubble">' TO rt_html.
+        APPEND '<div class="markdown-content">' TO rt_html.
+
+        SPLIT <ls_message>-content AT cl_abap_char_utilities=>newline INTO TABLE DATA(lt_content).
+
+        LOOP AT lt_content ASSIGNING FIELD-SYMBOL(<l_line_content>).
+          APPEND INITIAL LINE TO rt_html ASSIGNING FIELD-SYMBOL(<l_line>).
+          <l_line> = cl_abap_char_utilities=>newline && <l_line_content>.
+        ENDLOOP.
+
+        APPEND '</div>' TO rt_html.
+        APPEND '</div>' TO rt_html.
+        APPEND '<div class="message-timestamp">' && <ls_message>-datetime && '</div>' TO rt_html.
+        APPEND '</div>' TO rt_html.
 
       ENDIF.
 
@@ -781,16 +790,16 @@ CLASS ycl_aai_ui_chat IMPLEMENTATION.
 
     IF i_add_typing_animation = abap_true.
 
-      APPEND '        <div class="message llm-message">' TO rt_html.
-      APPEND '            <div class="message-bubble">' TO rt_html.
-      APPEND '                <div class="user-typing">' TO rt_html.
-      APPEND '                    <div class="user-typing-dot"></div>' TO rt_html.
-      APPEND '                    <div class="user-typing-dot"></div>' TO rt_html.
-      APPEND '                    <div class="user-typing-dot"></div>' TO rt_html.
-      APPEND '                </div>' TO rt_html.
-      APPEND '            </div>' TO rt_html.
-      APPEND '            <div class="message-timestamp"></div>' TO rt_html.
-      APPEND '        </div>' TO rt_html.
+      APPEND '<div class="message llm-message">' TO rt_html.
+      APPEND '<div class="message-bubble">' TO rt_html.
+      APPEND '<div class="user-typing">' TO rt_html.
+      APPEND '<div class="user-typing-dot"></div>' TO rt_html.
+      APPEND '<div class="user-typing-dot"></div>' TO rt_html.
+      APPEND '<div class="user-typing-dot"></div>' TO rt_html.
+      APPEND '</div>' TO rt_html.
+      APPEND '</div>' TO rt_html.
+      APPEND '<div class="message-timestamp"></div>' TO rt_html.
+      APPEND '</div>' TO rt_html.
 
     ENDIF.
 
