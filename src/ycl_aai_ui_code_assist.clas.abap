@@ -44,6 +44,10 @@ CLASS ycl_aai_ui_code_assist DEFINITION
         i_height TYPE i
         i_width  TYPE i.
 
+    METHODS set_abap_editor_integ_on.
+
+    METHODS set_abap_editor_integ_off.
+
     METHODS free.
 
 
@@ -54,19 +58,28 @@ CLASS ycl_aai_ui_code_assist DEFINITION
     DATA: _o_api             TYPE REF TO yif_aai_chat,
           _o_prompt_template TYPE REF TO yif_aai_prompt_template.
 
-    DATA: _display_mode TYPE c LENGTH 10 VALUE mc_display_mode_dock,
-          _popup_height TYPE i VALUE 400,
-          _popup_width  TYPE i VALUE 400.
+    DATA: _display_mode            TYPE c LENGTH 10 VALUE mc_display_mode_dock,
+          _popup_height            TYPE i VALUE 400,
+          _popup_width             TYPE i VALUE 400,
+          _abap_editor_integration TYPE abap_bool VALUE abap_true.
 
     METHODS _render.
 
     METHODS _handle_send_message.
+
+    METHODS _get_abap_editor_context
+      RETURNING VALUE(r_context) TYPE string.
+
+    METHODS _insert_code_block.
+
+    METHODS _reset.
 
 ENDCLASS.
 
 
 
 CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
+
 
   METHOD constructor.
 
@@ -104,13 +117,376 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
     ENDIF.
 
+    me->_o_prompt_template = NEW ycl_aai_prompt_template( |User question: %USER_MESSAGE% \n\nCode Block:\n\n %CONTEXT% | ).
+
   ENDMETHOD.
+
+
+  METHOD free.
+
+    IF me->mo_abapeditor IS BOUND.
+
+      me->mo_abapeditor->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_textedit IS BOUND.
+
+      me->mo_textedit->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_toolbar IS BOUND.
+
+      me->mo_toolbar->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_splitter IS BOUND.
+
+      me->mo_splitter->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_dock IS BOUND.
+
+      me->mo_dock->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    IF me->mo_dialogbox IS BOUND.
+
+      me->mo_dialogbox->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+    ENDIF.
+
+    CLEAR: me->mo_abapeditor,
+           me->mo_textedit,
+           me->mo_toolbar,
+           me->mo_splitter,
+           me->mo_dock,
+           me->mo_dialogbox.
+
+  ENDMETHOD.
+
+
+  METHOD on_close.
+
+    me->free( ).
+
+  ENDMETHOD.
+
+
+  METHOD on_function_selected.
+
+    CASE fcode.
+
+      WHEN 'SEND'.
+
+        me->_handle_send_message( ).
+
+      WHEN 'ACCEPT'.
+
+        me->_insert_code_block( ).
+
+      WHEN 'CLEAR'.
+
+        me->_reset( ).
+
+      WHEN 'CLOSE'.
+
+        me->free( ).
+
+      WHEN OTHERS.
+
+        RETURN.
+
+    ENDCASE.
+
+  ENDMETHOD.
+
 
   METHOD run.
 
     me->_render( ).
 
   ENDMETHOD.
+
+
+  METHOD set_abap_editor_integ_off.
+
+    me->_abap_editor_integration = abap_false.
+
+  ENDMETHOD.
+
+
+  METHOD set_abap_editor_integ_on.
+
+    me->_abap_editor_integration = abap_true.
+
+  ENDMETHOD.
+
+
+  METHOD set_api.
+
+    me->_o_api = io_api.
+
+  ENDMETHOD.
+
+
+  METHOD set_popup_size.
+
+    me->_popup_height = i_height.
+    me->_popup_width = i_width.
+
+  ENDMETHOD.
+
+
+  METHOD set_prompt_template.
+
+    me->_o_prompt_template = io_prompt_template.
+
+  ENDMETHOD.
+
+
+  METHOD _get_abap_editor_context.
+
+    FIELD-SYMBOLS: <lo_editor> TYPE REF TO cl_wb_editor.
+
+    DATA: lo_source TYPE REF TO cl_wb_source.
+
+    DATA: lt_source TYPE rswsourcet.
+
+    FREE r_context.
+
+    r_context = 'No coding context available.'.
+
+    ASSIGN ('(SAPLEDITOR_START)ABAP_EDITOR') TO <lo_editor>.
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    DATA(l_cursor_position) = <lo_editor>->cursor-index.
+
+    <lo_editor>->get_source_instance( IMPORTING source_object = lo_source ).
+
+    IF lo_source IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
+    lo_source->get_source_tab( EXPORTING use_control = 'X' IMPORTING source = lt_source[] ).
+
+    r_context = |```abap\n|.
+
+    LOOP AT lt_source ASSIGNING FIELD-SYMBOL(<code_line>).
+
+      IF sy-tabix = l_cursor_position.
+        r_context = |{ r_context } \n@CURSOR_POSITION\n|.
+      ENDIF.
+
+      r_context = |{ r_context } { <code_line> } \n|.
+
+    ENDLOOP.
+
+    r_context = |{ r_context }\n```\n|.
+
+  ENDMETHOD.
+
+
+  METHOD _insert_code_block.
+
+    FIELD-SYMBOLS: <lo_editor> TYPE REF TO cl_wb_editor.
+
+    ASSIGN ('(SAPLEDITOR_START)ABAP_EDITOR') TO <lo_editor>.
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    me->mo_abapeditor->get_text(
+*      EXPORTING
+*        name                   =                  " document name
+      IMPORTING
+        table                  = me->mt_buffer     " document text
+*        is_modified            =                  " modify status of text
+      EXCEPTIONS
+        error_dp               = 1
+        error_cntl_call_method = 2
+        OTHERS                 = 3
+    ).
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    DATA(l_cursor_position) = <lo_editor>->cursor-index.
+
+    <lo_editor>->insert_block(
+      EXPORTING
+        p_line       = l_cursor_position             " Position of Insert
+*        p_add_method = space                        " Call by Add
+      CHANGING
+        p_buffer     = me->mt_buffer                 " Statement Block to be Inserted
+    ).
+
+  ENDMETHOD.
+
+  METHOD _handle_send_message.
+
+    DATA: l_url          TYPE c LENGTH 250,
+          l_assigned     TYPE c LENGTH 250,
+          l_user_message TYPE string,
+          l_message      TYPE string,
+          l_context      TYPE string,
+          l_response     TYPE string.
+
+    IF me->mo_abapeditor IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
+    me->mo_textedit->get_textstream( IMPORTING text = l_user_message ). " <-- l_user_message still empty
+
+    cl_gui_cfw=>flush( ). " <-- now it's not empty anymore.
+
+    IF l_user_message IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    l_message = l_user_message.
+
+    IF me->_o_prompt_template IS BOUND.
+
+      IF me->_abap_editor_integration = abap_true.
+
+        l_context = me->_get_abap_editor_context( ).
+
+      ENDIF.
+
+      NEW ycl_aai_prompt( )->generate_prompt_from_template(
+        EXPORTING
+          i_o_template = me->_o_prompt_template
+          i_s_params   = VALUE yif_aai_prompt=>ty_params_basic_s( user_message = l_user_message
+                                                                  context = l_context )
+        RECEIVING
+          r_prompt     = l_message
+      ).
+
+    ENDIF.
+
+    " Call LLM Chat API
+    me->_o_api->chat(
+      EXPORTING
+        i_message    = l_message
+        i_new        = abap_true
+      IMPORTING
+        e_response   = l_response
+        e_t_response = DATA(lt_response)
+    ).
+
+    " Clear user's question
+    me->mo_textedit->set_textstream(
+      EXPORTING
+        text                   = space                 " Text as String with Carriage Returns and Linefeeds
+      EXCEPTIONS
+        error_cntl_call_method = 1                " Error Calling COM Method
+        not_supported_by_gui   = 2                " Method is not supported by installed GUI
+        OTHERS                 = 3
+    ).
+
+    IF sy-subrc <> 0.
+      " TODO: handle error!
+    ENDIF.
+
+    DATA(l_comment_line) = '"'.
+
+    FREE me->mt_buffer.
+
+    LOOP AT lt_response ASSIGNING FIELD-SYMBOL(<ls_response>).
+
+      APPEND INITIAL LINE TO me->mt_buffer ASSIGNING FIELD-SYMBOL(<l_buffer>).
+
+      FIND REGEX '```' IN <ls_response> IGNORING CASE.
+
+      IF sy-subrc = 0.
+
+        IF NOT <ls_response> CO '` '.
+
+          l_comment_line = space.
+
+          DATA(l_code_language) = <ls_response>.
+
+          REPLACE REGEX '```' IN l_code_language WITH space.
+
+          <ls_response> = |" >>> { condense( l_code_language ) } code example begin|.
+
+        ELSE.
+
+          l_comment_line = '"'.
+
+          <ls_response> = |<<< { condense( l_code_language ) } code sample end|.
+
+        ENDIF.
+
+      ENDIF.
+
+      <l_buffer> = <ls_response>.
+
+      IF l_comment_line = '"'.
+        <l_buffer> = |{ l_comment_line } { <l_buffer> }|.
+      ENDIF.
+
+    ENDLOOP.
+
+    " Clear ABAP editor content
+    me->mo_abapeditor->set_text(
+      EXPORTING
+        table           = me->mt_buffer
+      EXCEPTIONS
+        error_dp        = 1
+        error_dp_create = 2
+        error_code_page = 3
+        OTHERS          = 4
+    ).
+
+    IF sy-subrc <> 0.
+      " TODO: handle error!
+    ENDIF.
+
+    cl_gui_cfw=>flush( ).
+
+  ENDMETHOD.
+
 
   METHOD _render.
 
@@ -332,6 +708,36 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF me->_abap_editor_integration = abap_true.
+
+      me->mo_toolbar->add_button(
+        EXPORTING
+          fcode            = 'ACCEPT'                  " Function Code Associated with Button
+          icon             = icon_import               " Icon Name Defined Like "@0a@"
+          butn_type        = 0                         " Button Types Defined in CNTB
+          text             = 'Accept'                  " Text Shown to the Right of the Image
+        EXCEPTIONS
+          cntl_error       = 0
+          cntb_btype_error = 0
+          cntb_error_fcode = 0
+          OTHERS           = 0
+      ).
+
+    ENDIF.
+
+    me->mo_toolbar->add_button(
+        EXPORTING
+          fcode            = 'CLEAR'                   " Function Code Associated with Button
+          icon             = icon_delete               " Icon Name Defined Like "@0a@"
+          butn_type        = 0                         " Button Types Defined in CNTB
+          text             = 'Clear'                   " Text Shown to the Right of the Image
+        EXCEPTIONS
+          cntl_error       = 0
+          cntb_btype_error = 0
+          cntb_error_fcode = 0
+          OTHERS           = 0
+      ).
+
     IF me->_display_mode <> mc_display_mode_custom.
 
       me->mo_toolbar->add_button(
@@ -341,15 +747,11 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
           butn_type        = 0                         " Button Types Defined in CNTB
           text             = TEXT-002                  " Text Shown to the Right of the Image
         EXCEPTIONS
-          cntl_error       = 1
-          cntb_btype_error = 2
-          cntb_error_fcode = 3
-          OTHERS           = 4
+          cntl_error       = 0
+          cntb_btype_error = 0
+          cntb_error_fcode = 0
+          OTHERS           = 0
       ).
-
-      IF sy-subrc <> 0.
-        RETURN.
-      ENDIF.
 
     ENDIF.
 
@@ -386,242 +788,22 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD on_function_selected.
 
-    CASE fcode.
-
-      WHEN 'SEND'.
-
-        me->_handle_send_message( ).
-
-      WHEN 'CLOSE'.
-
-        me->free( ).
-
-      WHEN OTHERS.
-
-        RETURN.
-
-    ENDCASE.
-
-  ENDMETHOD.
-
-  METHOD set_api.
-
-    me->_o_api = io_api.
-
-  ENDMETHOD.
-
-  METHOD set_prompt_template.
-
-    me->_o_prompt_template = io_prompt_template.
-
-  ENDMETHOD.
-
-  METHOD _handle_send_message.
-
-    DATA: l_url           TYPE c LENGTH 250,
-          l_assigned      TYPE c LENGTH 250,
-          l_user_message  TYPE string,
-          l_message       TYPE string,
-          l_response      TYPE string.
-
-    IF me->mo_abapeditor IS NOT BOUND.
-      RETURN.
-    ENDIF.
-
-    me->mo_textedit->get_textstream( IMPORTING text = l_user_message ). " <-- l_user_message still empty
-
-    cl_gui_cfw=>flush( ). " <-- now it's not empty anymore.
-
-    IF l_user_message IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    l_message = l_user_message.
-
-    IF me->_o_prompt_template IS BOUND.
-
-      NEW ycl_aai_prompt( )->generate_prompt_from_template(
-        EXPORTING
-          i_o_template = me->_o_prompt_template
-          i_s_params   = VALUE yif_aai_prompt=>ty_params_basic_s( user_message = l_user_message )
-        RECEIVING
-          r_prompt     = l_message
-      ).
-
-    ENDIF.
-
-    " Call LLM Chat API
-    me->_o_api->chat(
-      EXPORTING
-        i_message    = l_message
-        i_new        = abap_true
-      IMPORTING
-        e_response   = l_response
-        e_t_response = DATA(lt_response)
-    ).
-
-    " Clear user's question
-    me->mo_textedit->set_textstream(
-      EXPORTING
-        text                   = space                 " Text as String with Carriage Returns and Linefeeds
-      EXCEPTIONS
-        error_cntl_call_method = 1                " Error Calling COM Method
-        not_supported_by_gui   = 2                " Method is not supported by installed GUI
-        OTHERS                 = 3
-    ).
-
-    IF sy-subrc <> 0.
-      " TODO: handle error!
-    ENDIF.
-
-    DATA(l_comment_line) = '"'.
+  METHOD _reset.
 
     FREE me->mt_buffer.
 
-    LOOP AT lt_response ASSIGNING FIELD-SYMBOL(<ls_response>).
+    me->mo_textedit->set_textstream( space ).
 
-      APPEND INITIAL LINE TO me->mt_buffer ASSIGNING FIELD-SYMBOL(<l_buffer>).
-
-      FIND REGEX '```' IN <ls_response> IGNORING CASE.
-
-      IF sy-subrc = 0.
-
-        IF NOT <ls_response> CO '` '.
-
-          l_comment_line = space.
-
-          DATA(l_code_language) = <ls_response>.
-
-          REPLACE REGEX '```' IN l_code_language WITH space.
-
-          <ls_response> = |" >>> { condense( l_code_language ) } code example begin|.
-
-        ELSE.
-
-          l_comment_line = '"'.
-
-          <ls_response> = |<<< { condense( l_code_language ) } code sample end|.
-
-        ENDIF.
-
-      ENDIF.
-
-      <l_buffer> = <ls_response>.
-
-      IF l_comment_line = '"'.
-        <l_buffer> = |{ l_comment_line } { <l_buffer> }|.
-      ENDIF.
-
-    ENDLOOP.
-
-    " Clear ABAP editor content
     me->mo_abapeditor->set_text(
       EXPORTING
         table           = me->mt_buffer
       EXCEPTIONS
-        error_dp        = 1
-        error_dp_create = 2
-        error_code_page = 3
-        OTHERS          = 4
+        error_dp        = 0
+        error_dp_create = 0
+        error_code_page = 0
+        OTHERS          = 0
     ).
-
-    IF sy-subrc <> 0.
-      " TODO: handle error!
-    ENDIF.
-
-    cl_gui_cfw=>flush( ).
-
-  ENDMETHOD.
-
-  METHOD on_close.
-
-    me->free( ).
-
-  ENDMETHOD.
-
-  METHOD free.
-
-    IF me->mo_abapeditor IS BOUND.
-
-      me->mo_abapeditor->free(
-        EXCEPTIONS
-          cntl_error        = 0
-          cntl_system_error = 0
-          OTHERS            = 0
-      ).
-
-    ENDIF.
-
-    IF me->mo_textedit IS BOUND.
-
-      me->mo_textedit->free(
-        EXCEPTIONS
-          cntl_error        = 0
-          cntl_system_error = 0
-          OTHERS            = 0
-      ).
-
-    ENDIF.
-
-    IF me->mo_toolbar IS BOUND.
-
-      me->mo_toolbar->free(
-        EXCEPTIONS
-          cntl_error        = 0
-          cntl_system_error = 0
-          OTHERS            = 0
-      ).
-
-    ENDIF.
-
-    IF me->mo_splitter IS BOUND.
-
-      me->mo_splitter->free(
-        EXCEPTIONS
-          cntl_error        = 0
-          cntl_system_error = 0
-          OTHERS            = 0
-      ).
-
-    ENDIF.
-
-    IF me->mo_dock IS BOUND.
-
-      me->mo_dock->free(
-        EXCEPTIONS
-          cntl_error        = 0
-          cntl_system_error = 0
-          OTHERS            = 0
-      ).
-
-    ENDIF.
-
-    IF me->mo_dialogbox IS BOUND.
-
-      me->mo_dialogbox->free(
-        EXCEPTIONS
-          cntl_error        = 0
-          cntl_system_error = 0
-          OTHERS            = 0
-      ).
-
-    ENDIF.
-
-    CLEAR: me->mo_abapeditor,
-           me->mo_textedit,
-           me->mo_toolbar,
-           me->mo_splitter,
-           me->mo_dock,
-           me->mo_dialogbox.
-
-  ENDMETHOD.
-
-  METHOD set_popup_size.
-
-    me->_popup_height = i_height.
-    me->_popup_width = i_width.
 
   ENDMETHOD.
 
