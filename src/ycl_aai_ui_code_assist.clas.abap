@@ -319,6 +319,11 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
     ENDLOOP.
 
+    " Add cursor position marker if l_cursor_position is not set or out of bounds
+    IF l_cursor_position IS INITIAL OR l_cursor_position > lines( lt_source ).
+      r_context = |{ r_context } \n@CURSOR_POSITION\n|.
+    ENDIF.
+
     r_context = |{ r_context }\n```\n|.
 
   ENDMETHOD.
