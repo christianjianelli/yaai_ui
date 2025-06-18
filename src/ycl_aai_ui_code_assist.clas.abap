@@ -48,6 +48,10 @@ CLASS ycl_aai_ui_code_assist DEFINITION
 
     METHODS set_abap_editor_integ_off.
 
+    METHODS set_max_lines
+      IMPORTING
+        i_max_lines TYPE i.
+
     METHODS free.
 
 
@@ -61,7 +65,8 @@ CLASS ycl_aai_ui_code_assist DEFINITION
     DATA: _display_mode            TYPE c LENGTH 10 VALUE mc_display_mode_dock,
           _popup_height            TYPE i VALUE 400,
           _popup_width             TYPE i VALUE 400,
-          _abap_editor_integration TYPE abap_bool VALUE abap_true.
+          _abap_editor_integration TYPE abap_bool VALUE abap_true,
+          _max_lines               TYPE i.
 
     METHODS _render.
 
@@ -69,6 +74,14 @@ CLASS ycl_aai_ui_code_assist DEFINITION
 
     METHODS _get_abap_editor_context
       RETURNING VALUE(r_context) TYPE string.
+
+    METHODS _calculate_start_end
+      IMPORTING
+        i_cursor_line TYPE i
+        i_lines       TYPE i
+      EXPORTING
+        e_start_line  TYPE i
+        e_end_line    TYPE i.
 
     METHODS _insert_code_block.
 
@@ -117,7 +130,10 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
     ENDIF.
 
+    " Default prompt template
     me->_o_prompt_template = NEW ycl_aai_prompt_template( |User question: %USER_MESSAGE% \n\nCode Block:\n\n %CONTEXT% | ).
+
+    me->_max_lines = 100.
 
   ENDMETHOD.
 
@@ -243,6 +259,13 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD set_max_lines.
+
+    me->_max_lines = i_max_lines.
+
+  ENDMETHOD.
+
+
   METHOD set_abap_editor_integ_off.
 
     me->_abap_editor_integration = abap_false.
@@ -307,9 +330,28 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
     lo_source->get_source_tab( EXPORTING use_control = 'X' IMPORTING source = lt_source[] ).
 
+    IF lt_source[] IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    "If l_cursor_position is not set or out of bounds then set its position as the last line
+    IF l_cursor_position IS INITIAL OR l_cursor_position > lines( lt_source ).
+      l_cursor_position = lines( lt_source ).
+    ENDIF.
+
+    " Calculates the start and end lines for a code block around the cursor position.
+    me->_calculate_start_end(
+      EXPORTING
+        i_cursor_line = l_cursor_position
+        i_lines       = lines( lt_source )
+      IMPORTING
+        e_start_line  = DATA(l_start_line)
+        e_end_line    = DATA(l_end_line)
+    ).
+
     r_context = |```abap\n|.
 
-    LOOP AT lt_source ASSIGNING FIELD-SYMBOL(<code_line>).
+    LOOP AT lt_source ASSIGNING FIELD-SYMBOL(<code_line>) FROM l_start_line TO l_end_line.
 
       IF sy-tabix = l_cursor_position.
         r_context = |{ r_context } \n@CURSOR_POSITION\n|.
@@ -319,12 +361,44 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
     ENDLOOP.
 
-    " Add cursor position marker if l_cursor_position is not set or out of bounds
-    IF l_cursor_position IS INITIAL OR l_cursor_position > lines( lt_source ).
-      r_context = |{ r_context } \n@CURSOR_POSITION\n|.
+    r_context = |{ r_context }\n```\n|.
+
+  ENDMETHOD.
+
+  METHOD _calculate_start_end.
+
+    " If the total number of lines is less than or equal to the max lines,
+    " the range is simply the entire file.
+    IF i_lines <= me->_max_lines.
+      e_start_line = 1.
+      e_end_line = i_lines.
+      RETURN.
     ENDIF.
 
-    r_context = |{ r_context }\n```\n|.
+    " Calculate how many lines to take before and after the cursor.
+    " DIV performs integer division (it discards the remainder), which is
+    " equivalent to floor().
+    DATA(l_lines_before) = ( me->_max_lines - 1 ) DIV 2.
+    DATA(l_lines_after)  = me->_max_lines - 1 - l_lines_before.
+
+    " Calculate the initial ideal start and end lines.
+    DATA(l_start_line) = i_cursor_line - l_lines_before.
+    DATA(l_end_line)   = i_cursor_line + l_lines_after.
+
+    " Adjust the range if it goes out of the file's boundaries.
+    IF l_start_line < 1.
+      " CASE 1: Cursor is near the beginning of the file.
+      e_start_line = 1.
+      e_end_line = me->_max_lines.
+    ELSEIF l_end_line > i_lines.
+      " CASE 2: Cursor is near the end of the file.
+      e_end_line = i_lines.
+      e_start_line = i_lines - me->_max_lines + 1.
+    ELSE.
+      " CASE 3: The ideal range is valid and within boundaries.
+      e_start_line = l_start_line.
+      e_end_line = l_end_line.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -336,6 +410,15 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
     ASSIGN ('(SAPLEDITOR_START)ABAP_EDITOR') TO <lo_editor>.
 
     IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    <lo_editor>->get_editor_state(
+      IMPORTING
+        state = DATA(ls_editor_state)                  " State of Editor
+    ).
+
+    IF ls_editor_state-eddisp = 'X'.
       RETURN.
     ENDIF.
 
