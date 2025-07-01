@@ -2,11 +2,8 @@
 This repository contains the user interface components for the `ABAP AI Tools`, designed to enhance interaction with the core functionalities.
 
 **See it in Action** 😊
-<p>
-  <video src="docs/videos/abap_ai_chat.mp4" width="1000" autoplay loop muted playsinline>
-    Your browser does not support the video tag.
-  </video>
-</p>
+<br>
+https://github.com/christianjianelli/yaai_ui/raw/refs/heads/main/docs/videos/abap_ai_chat.mp4
 
 ## Installation
 You can install the `ABAP AI User Interface` into your SAP system using `abapGit`. Follow the steps below:
