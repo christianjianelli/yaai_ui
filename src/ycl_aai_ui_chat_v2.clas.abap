@@ -27,7 +27,8 @@ CLASS ycl_aai_ui_chat_v2 DEFINITION
           mo_html_viewer_prompt TYPE REF TO cl_gui_html_viewer,
           mo_custom_container   TYPE REF TO cl_gui_custom_container.
 
-    DATA: mt_html TYPE STANDARD TABLE OF ty_html WITH DEFAULT KEY READ-ONLY.
+    DATA: mt_html        TYPE STANDARD TABLE OF ty_html WITH DEFAULT KEY READ-ONLY,
+          mt_html_prompt TYPE STANDARD TABLE OF ty_html WITH DEFAULT KEY READ-ONLY.
 
     DATA: m_url                TYPE string READ-ONLY,
           m_submit_button_text TYPE string VALUE 'Submit',
@@ -371,7 +372,10 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
 
     me->mo_html_viewer->show_url( l_assigned ).
 
-    DATA(lt_html_prompt) = me->_get_html_prompt( ).
+    me->mt_html_prompt = me->_get_html_prompt( ).
+
+    CLEAR: l_url,
+           l_assigned.
 
     me->mo_html_viewer_prompt->load_data(
         EXPORTING
@@ -379,7 +383,7 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
         IMPORTING
           assigned_url           = l_assigned
         CHANGING
-          data_table             = lt_html_prompt
+          data_table             = me->mt_html_prompt
         EXCEPTIONS
           dp_invalid_parameter   = 1
           dp_error_general       = 2
@@ -401,8 +405,6 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
   METHOD handle_sapevent.
 
     DATA ls_text TYPE string.
-
-    BREAK-POINT.
 
     LOOP AT query_table ASSIGNING FIELD-SYMBOL(<query_table>).
       ls_text = ls_text && <query_table>-value.
@@ -817,6 +819,8 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD _get_html_prompt.
+
+    FREE rt_html.
 
     APPEND '<html lang="en">' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '<head>' && cl_abap_char_utilities=>newline TO rt_html.
