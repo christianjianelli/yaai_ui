@@ -30,9 +30,9 @@ CLASS ycl_aai_ui_chat_v2 DEFINITION
     DATA: mt_html        TYPE STANDARD TABLE OF ty_html WITH DEFAULT KEY READ-ONLY,
           mt_html_prompt TYPE STANDARD TABLE OF ty_html WITH DEFAULT KEY READ-ONLY.
 
-    DATA: m_url                TYPE string READ-ONLY,
-          m_submit_button_text TYPE string VALUE 'Submit',
-          m_clear_button_text  TYPE string VALUE 'Clear'.
+    DATA: m_url                  TYPE string READ-ONLY,
+          m_submit_button_text   TYPE string VALUE 'Send',
+          m_new_chat_button_text TYPE string VALUE 'New chat'.
 
     METHODS constructor
       IMPORTING
@@ -71,6 +71,10 @@ CLASS ycl_aai_ui_chat_v2 DEFINITION
 
     METHODS hide_logo.
 
+    METHODS set_max_length
+      IMPORTING
+        i_max_length TYPE i.
+
     METHODS free.
 
   PROTECTED SECTION.
@@ -87,7 +91,9 @@ CLASS ycl_aai_ui_chat_v2 DEFINITION
           _popup_height TYPE i VALUE 400,
           _popup_width  TYPE i VALUE 400,
           _logo         TYPE string VALUE 'https://christianjianelli.github.io/abapAI.svg',
-          _no_logo      TYPE string.
+          _no_logo      TYPE string,
+          _new          TYPE abap_bool,
+          _max_length   TYPE i VALUE 500.
 
     METHODS _render.
 
@@ -114,6 +120,8 @@ CLASS ycl_aai_ui_chat_v2 DEFINITION
       IMPORTING
         i_message TYPE csequence.
 
+    METHODS _start_new_chat.
+
 ENDCLASS.
 
 
@@ -121,6 +129,8 @@ ENDCLASS.
 CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
 
   METHOD constructor.
+
+    me->_new = abap_true.
 
     IF i_greeting IS SUPPLIED AND i_greeting IS NOT INITIAL.
 
@@ -406,12 +416,29 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
 
     DATA ls_text TYPE string.
 
+    READ TABLE query_table TRANSPORTING NO FIELDS
+      WITH KEY name = 'NEW_CHAT'.
+
+    IF sy-subrc = 0.
+
+      me->_start_new_chat( ).
+
+      RETURN.
+
+    ENDIF.
+
     LOOP AT query_table ASSIGNING FIELD-SYMBOL(<query_table>).
       ls_text = ls_text && <query_table>-value.
     ENDLOOP.
 
     ls_text = cl_http_utility=>decode_base64( encoded = ls_text ).
     ls_text = cl_http_utility=>unescape_url( escaped = ls_text ).
+
+    IF ls_text IS INITIAL.
+
+      RETURN.
+
+    ENDIF.
 
     me->_handle_send_message( ls_text ).
 
@@ -681,7 +708,7 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
     APPEND '        background: #1d4ed8;' TO rt_css.
     APPEND '    }' TO rt_css.
 
-    APPEND '    .clear-btn {' TO rt_css.
+    APPEND '    .new-chat-btn {' TO rt_css.
     APPEND '        margin-left: 5px;' TO rt_css.
     APPEND '        margin-top: 8px;' TO rt_css.
     APPEND '        padding: 5px 16px;' TO rt_css.
@@ -699,7 +726,7 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
     APPEND '        min-width: 0;' TO rt_css.
     APPEND '    }' TO rt_css.
 
-    APPEND '    .clear-btn:hover {' TO rt_css.
+    APPEND '    .new-chat-btn:hover {' TO rt_css.
     APPEND '        background: #d1d5db;' TO rt_css.
     APPEND '    }' TO rt_css.
 
@@ -832,19 +859,19 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
     APPEND '</head>' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '<body>' && cl_abap_char_utilities=>newline TO rt_html.
 
-    APPEND '    <form id="splitForm" method="post" action="SAPEVENT:chat">' && cl_abap_char_utilities=>newline TO rt_html.
-    APPEND '        <textarea id="mainText" name="mainText" placeholder="Enter your message here..."></textarea>' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '    <form id="chatForm" method="post" action="SAPEVENT:chat">' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '        <textarea id="mainText" name="mainText" maxlength="' && me->_max_length && '" placeholder="Enter your message here..."></textarea>' && cl_abap_char_utilities=>newline TO rt_html.
 
     APPEND '        <div style="display: flex; flex-direction: row;">' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            <button type="submit">' && me->m_submit_button_text && '</button>' && cl_abap_char_utilities=>newline TO rt_html.
-    APPEND '            <button type="button" class="clear-btn" id="clearBtn">' && me->m_clear_button_text && '</button>' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            <button type="button" class="new-chat-btn" id="newChatBtn">' && me->m_new_chat_button_text && '</button>' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '        </div>' && cl_abap_char_utilities=>newline TO rt_html.
 
     APPEND '    </form>' && cl_abap_char_utilities=>newline TO rt_html.
 
     APPEND '    <script>' && cl_abap_char_utilities=>newline TO rt_html.
 
-    APPEND '        document.getElementById("splitForm").addEventListener("submit", function(e) {' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '        document.getElementById("chatForm").addEventListener("submit", function(e) {' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            e.preventDefault();' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            // Remove old hidden inputs' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            Array.from(this.querySelectorAll("input[type=hidden]")).forEach(el => el.remove());' && cl_abap_char_utilities=>newline TO rt_html.
@@ -853,6 +880,7 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
 
     APPEND '            // Convert textarea text to base64' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            const text = document.getElementById("mainText").value;' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            if (text === "") { return; }' && cl_abap_char_utilities=>newline TO rt_html.
 
     APPEND '' && cl_abap_char_utilities=>newline TO rt_html.
 
@@ -884,9 +912,16 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
     APPEND '            this.submit();' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '        });' && cl_abap_char_utilities=>newline TO rt_html.
 
-    APPEND '        document.getElementById("clearBtn").addEventListener("click", function() {' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '        document.getElementById("newChatBtn").addEventListener("click", function() {' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            document.getElementById("mainText").value = "";' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            document.getElementById("mainText").style.height = "auto";' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            Array.from(this.querySelectorAll("input[type=hidden]")).forEach(el => el.remove());' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            const input = document.createElement("input");' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            input.type = "hidden";' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            input.name = "NEW_CHAT";' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            input.value = "NEW_CHAT";' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            this.appendChild(input);' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            document.getElementById("chatForm").submit();' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '        });' && cl_abap_char_utilities=>newline TO rt_html.
 
     APPEND '        // Auto-grow textarea height' && cl_abap_char_utilities=>newline TO rt_html.
@@ -954,20 +989,18 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
 
     ENDIF.
 
-    DATA(l_new_chat) = COND abap_bool( WHEN me->_greeting IS NOT INITIAL THEN abap_true ELSE abap_false ).
-
     " Call LLM Chat API
     me->_o_api->chat(
       EXPORTING
         i_message    = l_content
-        i_new        = l_new_chat
-        i_greeting   = me->_greeting
+        i_new        = me->_new
+        i_greeting   = COND #( WHEN me->_new = abap_true THEN me->_greeting ELSE space )
       IMPORTING
         e_response   = l_response
         e_t_response = DATA(lt_response)
     ).
 
-    CLEAR me->_greeting. " to make sure the greeting is added to the chat history only once
+    me->_new = abap_false.
 
     IF l_response IS INITIAL.
       "A technical issue has occurred. Please try again or contact support if the problem persists.
@@ -1082,7 +1115,51 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD set_logo.
+
     me->_logo = i_logo.
+
+  ENDMETHOD.
+
+  METHOD set_max_length.
+
+    me->_max_length = i_max_length.
+
+  ENDMETHOD.
+
+  METHOD _start_new_chat.
+
+    DATA: l_url      TYPE c LENGTH 250,
+          l_assigned TYPE c LENGTH 250.
+
+    FREE me->_chat_messages_t.
+
+    me->_new = abap_true.
+
+    IF me->_greeting IS NOT INITIAL.
+
+      APPEND VALUE #( role = 'assistant'
+                      content = me->_greeting
+                      datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
+
+    ENDIF.
+
+    FREE me->mt_html.
+
+    me->mt_html = me->_get_html( ).
+
+    l_url = me->m_url.
+
+    mo_html_viewer->load_data(
+      EXPORTING
+        url          = l_url
+      IMPORTING
+        assigned_url = l_assigned
+      CHANGING
+        data_table   = me->mt_html
+    ).
+
+    mo_html_viewer->show_url( l_assigned ).
+
   ENDMETHOD.
 
 ENDCLASS.
