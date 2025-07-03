@@ -2,9 +2,10 @@
 
 ## Running Your First ABAP AI Chat
 
-This quickstart example demonstrates how to launch a simple AI-powered chat interface in ABAP using the `yaai_ui` library. 
+This quickstart example demonstrates how to launch a simple AI-powered chat interface in ABAP using the `yaai_ui`. 
 The provided code sets up a basic report that initializes the chat UI, connects to an AI model (such as OpenAI's GPT), and displays a user-friendly chat window. 
-Make sure your API credentials and endpoints are configured before running the example.
+
+Make sure your API Key and the API base URL are configured before running the example.
 
 ```abap
 REPORT yaai_ui_r_quickstart_chat.
@@ -57,3 +58,13 @@ AT SELECTION-SCREEN OUTPUT.
 
   o_app->run( ).
 ```
+
+**Result:**
+
+The following screenshots show the output you can expect after running the example report.
+
+<img src="images/abap_ai_ui_chat_quickstart_1.png" alt="ABAP AI UI Chat" width="800px">
+
+<br>
+
+<img src="images/abap_ai_ui_chat_quickstart_2.png" alt="ABAP AI UI Chat" width="800px">

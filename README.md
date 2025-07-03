@@ -1,7 +1,7 @@
 # yaai_ui - ABAP AI User Interface
 This repository contains the user interface components for the `ABAP AI Tools`, designed to enhance interaction with the core functionalities.
 
-**See it in Action** 😊
+**See It in Action** 😊
 
 ![Chat](docs/images/abap_ai_ui_chat_anim.gif)
 
@@ -113,6 +113,16 @@ AT SELECTION-SCREEN OUTPUT.
 
   o_app->run( ).
 ```
+
+**Result:**
+
+The following screenshots show the output you can expect after running the example report.
+
+<img src="docs/images/abap_ai_ui_chat_quickstart_1.png" alt="ABAP AI UI Chat" width="800px">
+
+<br>
+
+<img src="docs/images/abap_ai_ui_chat_quickstart_2.png" alt="ABAP AI UI Chat" width="800px">
 
 ## Read the documentation
 
