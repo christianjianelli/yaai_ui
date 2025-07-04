@@ -52,6 +52,10 @@ CLASS ycl_aai_ui_code_assist DEFINITION
       IMPORTING
         i_max_lines TYPE i.
 
+    METHODS set_max_length
+      IMPORTING
+        i_max_length TYPE i.
+
     METHODS free.
 
 
@@ -66,7 +70,8 @@ CLASS ycl_aai_ui_code_assist DEFINITION
           _popup_height            TYPE i VALUE 400,
           _popup_width             TYPE i VALUE 400,
           _abap_editor_integration TYPE abap_bool VALUE abap_true,
-          _max_lines               TYPE i.
+          _max_lines               TYPE i,
+          _max_length              TYPE i.
 
     METHODS _render.
 
@@ -262,6 +267,13 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
   METHOD set_max_lines.
 
     me->_max_lines = i_max_lines.
+
+  ENDMETHOD.
+
+
+  METHOD set_max_length.
+
+    me->_max_length = i_max_length.
 
   ENDMETHOD.
 
@@ -735,6 +747,7 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
     CREATE OBJECT me->mo_textedit
       EXPORTING
         parent                 = lo_textedit_container                " Parent Container
+        max_number_chars       = me->_max_length
       EXCEPTIONS
         error_cntl_create      = 1
         error_cntl_init        = 2
