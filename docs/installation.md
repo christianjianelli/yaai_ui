@@ -18,7 +18,7 @@ You can install the `ABAP AI User Interface` into your SAP system using `abapGit
    - Click on the `+` button (Add Online Repo) or select "New Online" from the menu.
 
  3 - **Enter Repository URL**:
-   - In the "URL" field, paste the URL of this GitHub repository: `https://github.com/christianjianelli/yaai_ui`
+   - In the "URL" field, paste the URL of this GitHub repository: `https://github.com/christianjianelli/yaai_ui.git`
    - For the **Package**, we recommend creating a new package called `YAAI_UI`. Remember to assign it to a transport request if necessary.
    - Click "OK" or press Enter.
 
