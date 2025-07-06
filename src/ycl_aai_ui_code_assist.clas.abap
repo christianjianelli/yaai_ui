@@ -16,7 +16,9 @@ CLASS ycl_aai_ui_code_assist DEFINITION
           mo_toolbar          TYPE REF TO cl_gui_toolbar,
           mo_custom_container TYPE REF TO cl_gui_custom_container.
 
-    DATA: mt_buffer TYPE rswsourcet.
+    DATA: mt_buffer TYPE rswsourcet READ-ONLY.
+
+    DATA: m_code_accepted TYPE abap_bool VALUE abap_false READ-ONLY.
 
     METHODS constructor
       IMPORTING
@@ -55,6 +57,10 @@ CLASS ycl_aai_ui_code_assist DEFINITION
     METHODS set_max_length
       IMPORTING
         i_max_length TYPE i.
+
+    METHODS set_code_accepted
+      IMPORTING
+        i_accepted TYPE abap_bool DEFAULT abap_true.
 
     METHODS free.
 
@@ -96,7 +102,7 @@ ENDCLASS.
 
 
 
-CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
+CLASS YCL_AAI_UI_CODE_ASSIST IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -230,6 +236,8 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
   METHOD on_function_selected.
 
+    me->m_code_accepted = abap_false.
+
     CASE fcode.
 
       WHEN 'SEND'.
@@ -237,6 +245,8 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
         me->_handle_send_message( ).
 
       WHEN 'ACCEPT'.
+
+        me->m_code_accepted = abap_true.
 
         me->_insert_code_block( ).
 
@@ -264,20 +274,6 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD set_max_lines.
-
-    me->_max_lines = i_max_lines.
-
-  ENDMETHOD.
-
-
-  METHOD set_max_length.
-
-    me->_max_length = i_max_length.
-
-  ENDMETHOD.
-
-
   METHOD set_abap_editor_integ_off.
 
     me->_abap_editor_integration = abap_false.
@@ -299,6 +295,27 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD set_code_accepted.
+
+    me->m_code_accepted = i_accepted.
+
+  ENDMETHOD.
+
+
+  METHOD set_max_length.
+
+    me->_max_length = i_max_length.
+
+  ENDMETHOD.
+
+
+  METHOD set_max_lines.
+
+    me->_max_lines = i_max_lines.
+
+  ENDMETHOD.
+
+
   METHOD set_popup_size.
 
     me->_popup_height = i_height.
@@ -310,6 +327,44 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
   METHOD set_prompt_template.
 
     me->_o_prompt_template = io_prompt_template.
+
+  ENDMETHOD.
+
+
+  METHOD _calculate_start_end.
+
+    " If the total number of lines is less than or equal to the max lines,
+    " the range is simply the entire file.
+    IF i_lines <= me->_max_lines.
+      e_start_line = 1.
+      e_end_line = i_lines.
+      RETURN.
+    ENDIF.
+
+    " Calculate how many lines to take before and after the cursor.
+    " DIV performs integer division (it discards the remainder), which is
+    " equivalent to floor().
+    DATA(l_lines_before) = ( me->_max_lines - 1 ) DIV 2.
+    DATA(l_lines_after)  = me->_max_lines - 1 - l_lines_before.
+
+    " Calculate the initial ideal start and end lines.
+    DATA(l_start_line) = i_cursor_line - l_lines_before.
+    DATA(l_end_line)   = i_cursor_line + l_lines_after.
+
+    " Adjust the range if it goes out of the file's boundaries.
+    IF l_start_line < 1.
+      " CASE 1: Cursor is near the beginning of the file.
+      e_start_line = 1.
+      e_end_line = me->_max_lines.
+    ELSEIF l_end_line > i_lines.
+      " CASE 2: Cursor is near the end of the file.
+      e_end_line = i_lines.
+      e_start_line = i_lines - me->_max_lines + 1.
+    ELSE.
+      " CASE 3: The ideal range is valid and within boundaries.
+      e_start_line = l_start_line.
+      e_end_line = l_end_line.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -377,90 +432,6 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD _calculate_start_end.
-
-    " If the total number of lines is less than or equal to the max lines,
-    " the range is simply the entire file.
-    IF i_lines <= me->_max_lines.
-      e_start_line = 1.
-      e_end_line = i_lines.
-      RETURN.
-    ENDIF.
-
-    " Calculate how many lines to take before and after the cursor.
-    " DIV performs integer division (it discards the remainder), which is
-    " equivalent to floor().
-    DATA(l_lines_before) = ( me->_max_lines - 1 ) DIV 2.
-    DATA(l_lines_after)  = me->_max_lines - 1 - l_lines_before.
-
-    " Calculate the initial ideal start and end lines.
-    DATA(l_start_line) = i_cursor_line - l_lines_before.
-    DATA(l_end_line)   = i_cursor_line + l_lines_after.
-
-    " Adjust the range if it goes out of the file's boundaries.
-    IF l_start_line < 1.
-      " CASE 1: Cursor is near the beginning of the file.
-      e_start_line = 1.
-      e_end_line = me->_max_lines.
-    ELSEIF l_end_line > i_lines.
-      " CASE 2: Cursor is near the end of the file.
-      e_end_line = i_lines.
-      e_start_line = i_lines - me->_max_lines + 1.
-    ELSE.
-      " CASE 3: The ideal range is valid and within boundaries.
-      e_start_line = l_start_line.
-      e_end_line = l_end_line.
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD _insert_code_block.
-
-    FIELD-SYMBOLS: <lo_editor> TYPE REF TO cl_wb_editor.
-
-    ASSIGN ('(SAPLEDITOR_START)ABAP_EDITOR') TO <lo_editor>.
-
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
-
-    <lo_editor>->get_editor_state(
-      IMPORTING
-        state = DATA(ls_editor_state)                  " State of Editor
-    ).
-
-    IF ls_editor_state-eddisp = 'X'.
-      RETURN.
-    ENDIF.
-
-    me->mo_abapeditor->get_text(
-*      EXPORTING
-*        name                   =                  " document name
-      IMPORTING
-        table                  = me->mt_buffer     " document text
-*        is_modified            =                  " modify status of text
-      EXCEPTIONS
-        error_dp               = 1
-        error_cntl_call_method = 2
-        OTHERS                 = 3
-    ).
-
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
-
-    DATA(l_cursor_position) = <lo_editor>->cursor-index.
-
-    <lo_editor>->insert_block(
-      EXPORTING
-        p_line       = l_cursor_position             " Position of Insert
-*        p_add_method = space                        " Call by Add
-      CHANGING
-        p_buffer     = me->mt_buffer                 " Statement Block to be Inserted
-    ).
-
-  ENDMETHOD.
 
   METHOD _handle_send_message.
 
@@ -474,6 +445,8 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
     IF me->mo_abapeditor IS NOT BOUND.
       RETURN.
     ENDIF.
+
+    me->m_code_accepted = abap_false.
 
     me->mo_textedit->get_textstream( IMPORTING text = l_user_message ). " <-- l_user_message still empty
 
@@ -584,6 +557,54 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
     ENDIF.
 
     cl_gui_cfw=>flush( ).
+
+  ENDMETHOD.
+
+
+  METHOD _insert_code_block.
+
+    FIELD-SYMBOLS: <lo_editor> TYPE REF TO cl_wb_editor.
+
+    ASSIGN ('(SAPLEDITOR_START)ABAP_EDITOR') TO <lo_editor>.
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    <lo_editor>->get_editor_state(
+      IMPORTING
+        state = DATA(ls_editor_state)                  " State of Editor
+    ).
+
+    IF ls_editor_state-eddisp = 'X'.
+      RETURN.
+    ENDIF.
+
+    me->mo_abapeditor->get_text(
+*      EXPORTING
+*        name                   =                  " document name
+      IMPORTING
+        table                  = me->mt_buffer     " document text
+*        is_modified            =                  " modify status of text
+      EXCEPTIONS
+        error_dp               = 1
+        error_cntl_call_method = 2
+        OTHERS                 = 3
+    ).
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    DATA(l_cursor_position) = <lo_editor>->cursor-index.
+
+    <lo_editor>->insert_block(
+      EXPORTING
+        p_line       = l_cursor_position             " Position of Insert
+*        p_add_method = space                        " Call by Add
+      CHANGING
+        p_buffer     = me->mt_buffer                 " Statement Block to be Inserted
+    ).
 
   ENDMETHOD.
 
@@ -809,7 +830,7 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    IF me->_abap_editor_integration = abap_true.
+    IF me->_abap_editor_integration = abap_true AND me->_display_mode <> ycl_aai_ui_code_assist=>mc_display_mode_custom.
 
       me->mo_toolbar->add_button(
         EXPORTING
@@ -907,5 +928,4 @@ CLASS ycl_aai_ui_code_assist IMPLEMENTATION.
     ).
 
   ENDMETHOD.
-
 ENDCLASS.
