@@ -2,6 +2,8 @@
 
 You can install the `ABAP AI User Interface` into your SAP system using `abapGit`.
 
+**Disclaimer:** ABAP AI User Interface is experimental and released under the MIT License. It is provided "as is", without warranty of any kind, express or implied. This means you use these tools at your own risk, and the authors are not liable for any damages or issues arising from their use.
+
 ## Prerequisites
  - **ABAP 7.52+**: You need an SAP system running ABAP version 7.52 or higher.
  - **ABAP AI Tools**: The `ABAP AI Tools` (https://github.com/christianjianelli/yaai) must be installed in your SAP system before proceeding with the UI installation.

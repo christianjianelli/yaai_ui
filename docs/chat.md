@@ -119,18 +119,55 @@ To enable RAG, implement the `yif_aai_rag` interface:
 
 ```abap
 CLASS zcl_my_rag DEFINITION
-  PUBLIC
-  FINAL
+
   CREATE PUBLIC.
+
   PUBLIC SECTION.
+
     INTERFACES yif_aai_rag.
+
+  PRIVATE SECTION.
+
+    DATA: _o_prompt_template TYPE REF TO yif_aai_prompt_template.
+
 ENDCLASS.
 
 CLASS zcl_my_rag IMPLEMENTATION.
+
   METHOD yif_aai_rag~augment_prompt.
-    " Retrieve context from vector DB and augment prompt
-    e_augmented_prompt = |Context: { retrieved_context } | && i_prompt.
+
+    DATA: retrieved_context TYPE string.
+
+    me->yif_aai_rag~get_context(
+      EXPORTING
+        i_input   = i_prompt
+      IMPORTING
+        e_context = DATA(l_context)
+    ).
+
+    "Prepare the parameters structure containing the user message and retrieved context for the prompt template
+    DATA(ls_params) = VALUE yif_aai_prompt=>ty_params_basic_s( user_message = i_prompt
+                                                               context = l_context ).
+
+    "Augment prompt
+    e_augmented_prompt = NEW ycl_aai_prompt( )->generate_prompt_from_template( i_o_template = me->_o_prompt_template
+                                                                               i_s_params = ls_params ).
+
   ENDMETHOD.
+
+  METHOD yif_aai_rag~get_context.
+
+    "Retrieve relevant context from external sources (e.g., vector databases)
+    e_context = 'This is the context retrieved from the data source.'.
+
+  ENDMETHOD.
+
+  METHOD yif_aai_rag~set_prompt_template.
+
+    me->_o_prompt_template = io_prompt_template.
+
+  ENDMETHOD.
+
 ENDCLASS.
 ```
 
