@@ -837,7 +837,7 @@ CLASS YCL_AAI_UI_CODE_ASSIST IMPLEMENTATION.
           fcode            = 'ACCEPT'                  " Function Code Associated with Button
           icon             = icon_import               " Icon Name Defined Like "@0a@"
           butn_type        = 0                         " Button Types Defined in CNTB
-          text             = 'Accept'                  " Text Shown to the Right of the Image
+          text             = TEXT-004                  " Text Shown to the Right of the Image
         EXCEPTIONS
           cntl_error       = 0
           cntb_btype_error = 0
@@ -852,7 +852,7 @@ CLASS YCL_AAI_UI_CODE_ASSIST IMPLEMENTATION.
           fcode            = 'CLEAR'                   " Function Code Associated with Button
           icon             = icon_delete               " Icon Name Defined Like "@0a@"
           butn_type        = 0                         " Button Types Defined in CNTB
-          text             = 'Clear'                   " Text Shown to the Right of the Image
+          text             = TEXT-005                  " Text Shown to the Right of the Image
         EXCEPTIONS
           cntl_error       = 0
           cntb_btype_error = 0

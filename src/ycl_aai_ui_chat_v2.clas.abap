@@ -71,6 +71,14 @@ CLASS ycl_aai_ui_chat_v2 DEFINITION
 
     METHODS hide_logo.
 
+    METHODS set_send_button_text
+      IMPORTING
+        i_send_button_text TYPE csequence.
+
+    METHODS set_new_chat_button_text
+      IMPORTING
+        i_new_chat_button_text TYPE csequence.
+
     METHODS set_max_length
       IMPORTING
         i_max_length TYPE i.
@@ -1159,6 +1167,18 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
     ).
 
     mo_html_viewer->show_url( l_assigned ).
+
+  ENDMETHOD.
+
+  METHOD set_new_chat_button_text.
+
+    me->m_new_chat_button_text = i_new_chat_button_text.
+
+  ENDMETHOD.
+
+  METHOD set_send_button_text.
+
+    me->m_submit_button_text = i_send_button_text.
 
   ENDMETHOD.
 

@@ -16,7 +16,7 @@
      <ID>I</ID>
      <KEY>001</KEY>
      <ENTRY>Send</ENTRY>
-     <LENGTH>22</LENGTH>
+     <LENGTH>15</LENGTH>
     </item>
     <item>
      <ID>I</ID>
@@ -28,7 +28,19 @@
      <ID>I</ID>
      <KEY>003</KEY>
      <ENTRY>Chat</ENTRY>
-     <LENGTH>14</LENGTH>
+     <LENGTH>15</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>004</KEY>
+     <ENTRY>Accept</ENTRY>
+     <LENGTH>15</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>005</KEY>
+     <ENTRY>Clear</ENTRY>
+     <LENGTH>15</LENGTH>
     </item>
    </TPOOL>
   </asx:values>
