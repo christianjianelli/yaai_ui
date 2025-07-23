@@ -13,6 +13,13 @@ The Chat UI allows users to interact with AI models in a familiar chat format. I
 - Basic customization of appearance and behavior (with additional options likely to be introduced in future versions).
 - Advanced AI functionality, including Retrieval-Augmented Generation (RAG), Prompt Templates, and Function Calling, enabled by `ABAP AI Tools` (https://github.com/christianjianelli/yaai)
 
+
+## SAP GUI Browser Control
+
+The Chat component requires the Browser control Edge (based on Chromium).
+
+[<img src="images/BrowserControlEdge.png" alt="Browser Control Edge" height="400px">](images/BrowserControlEdge.png)
+
 ---
 
 ## Instantiation

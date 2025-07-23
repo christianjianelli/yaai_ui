@@ -9,6 +9,7 @@ You can install the `ABAP AI User Interface` into your SAP system using `abapGit
  - **ABAP AI Tools**: The `ABAP AI Tools` (https://github.com/christianjianelli/yaai) must be installed in your SAP system before proceeding with the UI installation.
  - **abapGit**: Ensure that `abapGit` is installed and configured in your ABAP system. If not, you can find the latest version and installation instructions on the official abapGit website: https://docs.abapgit.org/
  - **Developer Access**: You need appropriate developer authorizations in your ABAP system to import objects.
+ - **Edge (based on Chromium)**: The Chat component requires the Browser control Edge (based on Chromium).
 
 ## Installation Steps
 
