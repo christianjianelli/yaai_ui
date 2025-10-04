@@ -774,11 +774,11 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
     APPEND '<script>' TO rt_html.
 
     APPEND 'document.querySelectorAll(''.message.user-message .message-bubble p'').forEach(p => {' TO rt_html.
-    APPEND '  p.innerHTML = marked.parse(p.textContent);' TO rt_html.
+    APPEND '  p.innerHTML = marked.parse(p.innerHTML);' TO rt_html.
     APPEND '});' TO rt_html.
 
     APPEND 'document.querySelectorAll(''.message.llm-message .message-bubble .markdown-content'').forEach(el => {' TO rt_html.
-    APPEND '  el.innerHTML = marked.parse(el.textContent);' TO rt_html.
+    APPEND '  el.innerHTML = marked.parse(el.innerHTML);' TO rt_html.
     APPEND '});' TO rt_html.
 
     APPEND 'const userMessages = document.querySelectorAll(''.user-message'');' TO rt_html.
