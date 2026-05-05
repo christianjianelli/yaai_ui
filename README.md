@@ -1,4 +1,4 @@
-# yaai_ui - ABAP AI User Interface
+# yaai_ui - ABAP AI tools User Interface
 This repository contains the user interface components for the `ABAP AI Tools`, designed to enhance interaction with the core functionalities.
 
 **See It in Action** 😊
