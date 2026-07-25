@@ -42,6 +42,27 @@ You can install the `ABAP AI User Interface` into your SAP system using `abapGit
 
 You have now successfully installed the `ABAP AI User Interface!`
 
+## 🐞 Found a bug?
+
+If something doesn't work as expected, please don't give up on ABAP AI tools!
+
+If you encounter a bug, I'd really appreciate it if you could open a [GitHub Issue](https://github.com/christianjianelli/yaai_ui/issues/new). Even if you're not sure whether it's actually a bug, I'd much rather hear about it than have you stop using the project.
+
+You don't need to investigate the cause first, just describe what you were trying to do and what happened instead.
+
+Your bug report helps improve ABAP AI tools for everyone.
+
+👉 **Report a bug:** https://github.com/christianjianelli/yaai_ui/issues/new
+
+## ❓ Need Help?
+
+If you have a question, need help getting started, need help using ABAP AI tools, or aren't sure whether you've found a bug, feel free to start a GitHub [Discussion](https://github.com/christianjianelli/yaai_ui/discussions). If you've confirmed it's a bug, please open a GitHub [Issue](https://github.com/christianjianelli/yaai_ui/issues) instead.
+
+I'm happy to help, and your questions often inspire improvements to both the documentation and the project itself.
+
+- 🤔 **Need help or have a question?** Ask in [Discussions](https://github.com/christianjianelli/yaai_ui/discussions).
+- 💡 **Want to suggest an improvement?** Share your idea in [Discussions](https://github.com/christianjianelli/yaai_ui/discussions).
+
 ## User Interface Components
 
 Explore these components to enhance your workflow with ABAP AI Tools.
