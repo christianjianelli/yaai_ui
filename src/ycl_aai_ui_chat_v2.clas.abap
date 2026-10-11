@@ -422,7 +422,7 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
 
   METHOD handle_sapevent.
 
-    DATA ls_text TYPE string.
+    DATA l_text TYPE string.
 
     READ TABLE query_table TRANSPORTING NO FIELDS
       WITH KEY name = 'NEW_CHAT'.
@@ -436,19 +436,17 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
     ENDIF.
 
     LOOP AT query_table ASSIGNING FIELD-SYMBOL(<query_table>).
-      ls_text = ls_text && <query_table>-value.
+      l_text = l_text && <query_table>-value.
     ENDLOOP.
 
-    ls_text = cl_http_utility=>decode_base64( encoded = ls_text ).
-    ls_text = cl_http_utility=>unescape_url( escaped = ls_text ).
+    l_text = cl_http_utility=>decode_base64( encoded = l_text ).
+    l_text = cl_http_utility=>unescape_url( escaped = l_text ).
 
-    IF ls_text IS INITIAL.
-
+    IF l_text IS INITIAL.
       RETURN.
-
     ENDIF.
 
-    me->_handle_send_message( ls_text ).
+    me->_handle_send_message( l_text ).
 
   ENDMETHOD.
 
