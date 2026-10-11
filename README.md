@@ -1,9 +1,15 @@
 # yaai_ui - ABAP AI tools User Interface
-This repository contains the user interface components for the `ABAP AI Tools`, designed to enhance interaction with the core functionalities.
+This repository contains the user interface components for the `ABAP AI tools`, designed to enhance interaction with the core functionalities.
 
 **See It in Action** 😊
 
 ![Chat](docs/images/abap_ai_ui_chat_anim.gif)
+
+**New Chat User Interface (version 3) released**
+A new version of the chat user interface with support for files is available. In this new version, users can attach images and files to be sent to the AI assistant along with their prompts. Examples and documentation will be provided soon.  
+
+![Chat V3](docs/images/abap_ai_ui_chat_v3.png)
+
 
 ## Installation
 You can install the `ABAP AI User Interface` into your SAP system using `abapGit`. Follow the steps below:
@@ -12,7 +18,7 @@ You can install the `ABAP AI User Interface` into your SAP system using `abapGit
 
 ## Prerequisites
  - **ABAP 7.52+**: You need an SAP system running ABAP version 7.52 or higher.
- - **ABAP AI Tools**: The `ABAP AI Tools` (https://github.com/christianjianelli/yaai) must be installed in your SAP system before proceeding with the UI installation.
+ - **ABAP AI tools**: The `ABAP AI tools` (https://github.com/christianjianelli/yaai) **version 1.2.3 or later** must be installed in your SAP system before proceeding with the UI installation.
  - **abapGit**: Ensure that `abapGit` is installed and configured in your ABAP system. If not, you can find the latest version and installation instructions on the official abapGit website: https://docs.abapgit.org/
  - **Developer Access**: You need appropriate developer authorizations in your ABAP system to import objects.
  - **Edge (based on Chromium)**: The Chat component requires the Browser control Edge (based on Chromium).
@@ -65,7 +71,7 @@ I'm happy to help, and your questions often inspire improvements to both the doc
 
 ## User Interface Components
 
-Explore these components to enhance your workflow with ABAP AI Tools.
+Explore these components to enhance your workflow with ABAP AI tools.
 
 - **Chat Interface**: Engage in conversational AI interactions directly within your SAP system.
 
