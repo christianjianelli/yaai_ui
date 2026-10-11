@@ -6,6 +6,7 @@ This repository contains the user interface components for the `ABAP AI tools`, 
 ![Chat](docs/images/abap_ai_ui_chat_anim.gif)
 
 **New Chat User Interface (version 3) released**
+
 A new version of the chat user interface with support for files is available. In this new version, users can attach images and files to be sent to the AI assistant along with their prompts. Examples and documentation will be provided soon.  
 
 ![Chat V3](docs/images/abap_ai_ui_chat_v3.png)
