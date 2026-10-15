@@ -7,7 +7,7 @@ This repository contains the user interface components for the `ABAP AI tools`, 
 
 **New Chat User Interface (version 3) released**
 
-A new version of the chat user interface with support for files is available. In this new version, users can attach images and files to be sent to the AI assistant along with their prompts. Examples and documentation will be provided soon.  
+A new version of the chat user interface with support for files is available. In this new version, users can attach images and files to be sent to the AI assistant along with their prompts.
 
 ![Chat V3](docs/images/abap_ai_ui_chat_v3.png)
 
@@ -100,13 +100,13 @@ Make sure your API credentials and endpoints are configured before running the e
 ```abap
 REPORT yaai_ui_r_quickstart_chat.
 
-PARAMETERS: p_model TYPE c LENGTH 30 LOWER CASE OBLIGATORY DEFAULT 'gpt-4.1'.
+PARAMETERS: p_model TYPE c LENGTH 30 LOWER CASE OBLIGATORY DEFAULT 'gpt-5.6-luna'.
 
 CLASS lcl_app DEFINITION.
 
   PUBLIC SECTION.
 
-    DATA mo_aai_ui_chat TYPE REF TO ycl_aai_ui_chat_v2 READ-ONLY.
+    DATA mo_aai_ui_chat TYPE REF TO ycl_aai_ui_chat_v3 READ-ONLY.
 
     METHODS run.
 
@@ -121,10 +121,17 @@ CLASS lcl_app IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    "This example assumes that the API base URL and the API Key are properly configured
-    DATA(lo_aai_openai) = NEW ycl_aai_openai( i_model = p_model ).
+    " Run the class YCL_AAI_BASIC_SETUP to execute the basic setup of the APIs, models and tools
+    DATA(lo_aai_conn) = NEW ycl_aai_conn( yif_aai_const=>c_openai ).
 
-    "Create a Chat instance passing the AI API you want to use 
+    " The hardcoded API key in this example is intended for testing and development only.
+    " Hardcoding API keys directly into your ABAP code is highly discouraged.
+    lo_aai_conn->set_api_key( i_api_key = 'REPLACE_THIS_TEXT_WITH_YOUR_API_KEY' ).
+
+    DATA(lo_aai_openai) = NEW ycl_aai_openai( i_model = p_model
+                                              i_o_connection = lo_aai_conn ).
+
+    "Create a Chat instance passing the AI API you want to use
     me->mo_aai_ui_chat = NEW #( io_api = lo_aai_openai
                                 i_greeting = 'How can I help you today? 😊' ).
 

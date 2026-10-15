@@ -1,5 +1,5 @@
 # yaai_ui - ABAP AI User Interface
-This repository contains the user interface components for the `ABAP AI Tools`, designed to enhance interaction with the core functionalities.
+This repository contains the user interface components for the `ABAP AI tools`, designed to enhance interaction with the core functionalities.
 
 **See It in Action** 😊
 
@@ -7,7 +7,7 @@ This repository contains the user interface components for the `ABAP AI Tools`, 
 
 **New Chat User Interface (version 3) released**
 
-A new version of the chat user interface with support for files is available. In this new version, users can attach images and files to be sent to the AI assistant along with their prompts. Examples and documentation will be provided soon.  
+A new version of the chat user interface with support for files is available. In this new version, users can attach images and files to be sent to the AI assistant along with their prompts.
 
 ![Chat V3](images/abap_ai_ui_chat_v3.png)
 
@@ -18,7 +18,7 @@ A new version of the chat user interface with support for files is available. In
 
 ## User Interface Components
 
-Explore these components to enhance your workflow with ABAP AI Tools.
+Explore these components to enhance your workflow with ABAP AI tools.
 
   - [Chat Interface](chat.md): Engage in conversational AI interactions directly within your SAP system.
   - [Code Assistant](code_assist.md): Access AI-powered code suggestions and assistance for ABAP development.

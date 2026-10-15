@@ -24,10 +24,11 @@ The Chat component requires the Browser control Edge (based on Chromium).
 
 ## Instantiation
 
-There are two main classes for chat UI:
+There are three classes for chat UI:
 
-- **`ycl_aai_ui_chat_v2`**: Recommended. Uses only HTML Viewer controls for a modern, responsive experience.
-- **`ycl_aai_ui_chat`**: Version using TextEdit and Toolbar controls.
+- **`ycl_aai_ui_chat_v3`**: Modern, responsive interface using HTML Viewer controls. Adds support for images and files.
+- **`ycl_aai_ui_chat_v2`**: Modern, responsive interface using HTML Viewer controls. Text-only version.
+- **`ycl_aai_ui_chat`**: Simple text-only user interface using TextEdit and Toolbar controls.
 
 ### Supported Modes
 
@@ -40,7 +41,7 @@ There are two main classes for chat UI:
 ```abap
 DATA(o_api) = NEW ycl_aai_openai( ).
 
-DATA(o_chat) = NEW ycl_aai_ui_chat_v2(
+DATA(o_chat) = NEW ycl_aai_ui_chat_v3(
   i_greeting     = 'Hello! How can I help you today?'
   io_api         = o_api
   i_display_mode = ycl_aai_ui_chat=>mc_display_mode_dock "the other options are: mc_display_mode_dialog, mc_display_mode_custom
@@ -99,7 +100,7 @@ To embed the chat in a custom SAP GUI container:
       "Handle error
     ENDIF.
 
-    DATA(o_chat) = NEW ycl_aai_ui_chat_v2(
+    DATA(o_chat) = NEW ycl_aai_ui_chat_v3(
     io_api              = o_api
     io_custom_container = o_custom_container
     ).
