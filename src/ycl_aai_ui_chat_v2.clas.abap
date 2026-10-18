@@ -43,6 +43,8 @@ CLASS ycl_aai_ui_chat_v2 DEFINITION
 
     METHODS run.
 
+    METHODS display.
+
     METHODS handle_sapevent FOR EVENT sapevent OF cl_gui_html_viewer
       IMPORTING action
                 frame
@@ -187,6 +189,12 @@ CLASS ycl_aai_ui_chat_v2 IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD run.
+
+    me->_render( ).
+
+  ENDMETHOD.
+
+  METHOD display.
 
     me->_render( ).
 
