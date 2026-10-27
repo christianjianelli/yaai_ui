@@ -166,11 +166,13 @@ CLASS ycl_aai_ui_chat_v3 DEFINITION
 
     METHODS _close_chat.
 
+    METHODS _refresh_chat_messages.
+
 ENDCLASS.
 
 
 
-CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
+CLASS ycl_aai_ui_chat_v3 IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -244,6 +246,25 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
           ls_events TYPE LINE OF cntl_simple_events.
 
     FREE me->mt_chat_files.
+
+    IF me->mo_alv IS BOUND.
+
+      me->mo_dialogbox_files->free( ).
+
+      me->mo_splitter_files->free(
+        EXCEPTIONS
+          cntl_error        = 0
+          cntl_system_error = 0
+          OTHERS            = 0
+      ).
+
+      CLEAR: mo_alv,
+             me->mo_splitter_files,
+             me->mo_dialogbox_files.
+
+      RETURN.
+
+    ENDIF.
 
     CREATE OBJECT me->mo_dialogbox_files
       EXPORTING
@@ -515,6 +536,17 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
 
     ENDIF.
 
+    READ TABLE query_table TRANSPORTING NO FIELDS
+      WITH KEY name = 'FILES'.
+
+    IF sy-subrc = 0.
+
+      me->display_files( ).
+
+      RETURN.
+
+    ENDIF.
+
     READ TABLE query_table ASSIGNING FIELD-SYMBOL(<ls_query_table>)
       WITH KEY name = 'FILENAME'.
 
@@ -562,16 +594,7 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
 
       APPEND ls_add_file TO me->_files_t.
 
-      RETURN.
-
-    ENDIF.
-
-    READ TABLE query_table TRANSPORTING NO FIELDS
-      WITH KEY name = 'FILES'.
-
-    IF sy-subrc = 0.
-
-      me->display_files( ).
+      me->_refresh_chat_messages( ).
 
       RETURN.
 
@@ -632,6 +655,8 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
 
         me->_file_upload( ).
 
+        me->_refresh_chat_messages( ).
+
       WHEN 'DELE'.
 
         me->mo_alv->get_metadata( ).
@@ -643,15 +668,31 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
         LOOP AT lt_selected_rows ASSIGNING FIELD-SYMBOL(<l_selected_row>).
 
           READ TABLE me->mt_chat_files INDEX <l_selected_row>
-            INTO DATA(ls_file).
+            ASSIGNING FIELD-SYMBOL(<ls_chat_file>).
 
-          DELETE me->_files_t WHERE id = ls_file-id.
+          IF sy-subrc = 0.
 
-          DELETE me->mt_chat_files INDEX <l_selected_row>.
+            READ TABLE me->_files_t
+              ASSIGNING FIELD-SYMBOL(<ls_file>)
+              WITH KEY id = <ls_chat_file>-id.
+
+            IF sy-subrc = 0.
+              CLEAR <ls_file>.
+            ENDIF.
+
+            CLEAR <ls_chat_file>.
+
+          ENDIF.
 
         ENDLOOP.
 
+        DELETE me->_files_t WHERE id IS INITIAL.
+
+        DELETE me->mt_chat_files WHERE id IS INITIAL.
+
         me->mo_alv->refresh( ).
+
+        me->_refresh_chat_messages( ).
 
       WHEN OTHERS.
 
@@ -779,10 +820,12 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
           l_file_content_bin TYPE xstring.
 
     cl_gui_frontend_services=>file_open_dialog(
+      EXPORTING
+        multiselection          = abap_true
       CHANGING
-        file_table              = lt_file_table     " Table Holding Selected Files
-        rc                      = l_rc              " Return Code, Number of Files or -1 If Error Occurred
-        user_action             = l_user_action     " User Action (See Class Constants ACTION_OK, ACTION_CANCEL)
+        file_table              = lt_file_table
+        rc                      = l_rc
+        user_action             = l_user_action
       EXCEPTIONS
         file_open_dialog_failed = 1                 " "Open File" dialog failed
         cntl_error              = 2                 " Control error
@@ -883,7 +926,8 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
       APPEND VALUE #( id = ls_add_file-id
                       filename = ls_add_file-filename
                       file_type = ls_add_file-mimetype
-                      file_size = ls_add_file-filesize ) TO me->mt_chat_files.
+                      file_size = ls_add_file-filesize
+                      status = icon_led_inactive ) TO me->mt_chat_files.
 
     ENDLOOP.
 
@@ -913,23 +957,13 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
              ( <ls_file>-seqno = me->_seqno AND <ls_file>-seqno <> me->_temp_seqno ).
 
             IF <ls_file>-mimetype CP 'image/*'.
-              l_icon = |<img src="data:{ <ls_file>-mimetype };base64, { <ls_file>-content }" width="50" height="50" alt="Attachment Icon"></img>|.
+              l_icon = '&#128444;&#65039;'.
             ELSE.
               l_icon = '&#128196;'.
             ENDIF.
 
             APPEND |<div class="attachment-ghost">| TO rt_html.
-
-            IF strlen( l_icon ) < 1900.
-              APPEND |<div class="attachment-icon">{ l_icon }</div>| TO rt_html.
-            ELSE.
-              APPEND |<div class="attachment-icon">| TO rt_html.
-              WHILE l_start < strlen( l_icon ).
-                APPEND l_icon+l_start TO rt_html.
-                l_start = l_start + 2000.
-              ENDWHILE.
-              APPEND |</div>| TO rt_html.
-            ENDIF.
+            APPEND |<div class="attachment-icon">{ l_icon }</div>| TO rt_html.
             APPEND |<div class="attachment-info">| TO rt_html.
             APPEND |<div class="attachment-name">{ <ls_file>-filename }</div>| TO rt_html.
             APPEND |<div class="attachment-size">{ <ls_file>-filesize }</div>| TO rt_html.
@@ -970,6 +1004,36 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
       ENDIF.
 
     ENDLOOP.
+
+    DATA(l_counter) = 0.
+
+    LOOP AT me->_files_t ASSIGNING <ls_file> WHERE seqno = me->_temp_seqno.
+
+      l_counter = l_counter + 1.
+
+      IF l_counter = 1.
+        APPEND |<div class="attachments">| TO rt_html.
+      ENDIF.
+
+      IF <ls_file>-mimetype CP 'image/*'.
+        l_icon = '&#128444;&#65039;'.
+      ELSE.
+        l_icon = '&#128196;'.
+      ENDIF.
+
+      APPEND |<div class="attachment-ghost">| TO rt_html.
+      APPEND |<div class="attachment-icon">{ l_icon }</div>| TO rt_html.
+      APPEND |<div class="attachment-info">| TO rt_html.
+      APPEND |<div class="attachment-name">{ <ls_file>-filename }</div>| TO rt_html.
+      APPEND |<div class="attachment-size">{ <ls_file>-filesize }</div>| TO rt_html.
+      APPEND '</div>' TO rt_html.
+      APPEND '</div>' TO rt_html.
+
+    ENDLOOP.
+
+    IF l_counter > 0.
+      APPEND |</div>| TO rt_html.
+    ENDIF.
 
     IF i_add_typing_animation = abap_true.
 
@@ -1175,6 +1239,11 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
     APPEND '        user-select: none;' TO rt_css.
     APPEND '        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);' TO rt_css.
     APPEND '        /* Subtle shadow for depth */' TO rt_css.
+    APPEND '    }' TO rt_css.
+
+    APPEND '    .attachments {' TO rt_css.
+    APPEND '        position: absolute;' TO rt_css.
+    APPEND '        bottom: 0;' TO rt_css.
     APPEND '    }' TO rt_css.
 
     APPEND '    .attachment-icon {' TO rt_css.
@@ -1425,13 +1494,13 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
     APPEND '        }' && cl_abap_char_utilities=>newline TO rt_html.
 
     APPEND '        async function sendFilesToABAP(files){' && cl_abap_char_utilities=>newline TO rt_html.
-    APPEND '            const maxLen = 250;' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '            const maxLen = 200;' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            const chatForm = document.getElementById("chatForm");' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            if (chatForm) {' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '                let timeout = 0;' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '                for (const file of files) {' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '                    let i = 0, part = 1, base = 1000000000;' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '                    Array.from(document.querySelectorAll("input[type=hidden]")).forEach(el => el.remove());' && cl_abap_char_utilities=>newline TO rt_html.
-    APPEND '                    console.log(file.name);' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '                    if (file.size > 200000) {break;}' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '                    const fileContentBase64 = await _fileToBase64(file);' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '                    //console.log(fileContentBase64);' && cl_abap_char_utilities=>newline TO rt_html.
@@ -1466,6 +1535,12 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
     APPEND '                    }' && cl_abap_char_utilities=>newline TO rt_html.
 
     APPEND '                    document.getElementById("chatForm").submit();' && cl_abap_char_utilities=>newline TO rt_html.
+
+    APPEND '                    console.log(file.name);' && cl_abap_char_utilities=>newline TO rt_html.
+
+    APPEND '                    /* SAP ignores a form submission while it is still processing a previous one.' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '                    So, we cannot send multiple files in the drop event.*/' && cl_abap_char_utilities=>newline TO rt_html.
+    APPEND '                    break;' && cl_abap_char_utilities=>newline TO rt_html.
 
     APPEND '                }' && cl_abap_char_utilities=>newline TO rt_html.
     APPEND '            }' && cl_abap_char_utilities=>newline TO rt_html.
@@ -1614,6 +1689,21 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
                     content = i_message
                     datetime = |{ sy-datlo+6(2) }.{ sy-datlo+4(2) }.{ sy-datlo(4) } { sy-timlo(2) }:{ sy-datlo+2(2) }| ) TO me->_chat_messages_t.
 
+    LOOP AT me->_files_t ASSIGNING FIELD-SYMBOL(<ls_file>).
+
+      IF <ls_file>-seqno = me->_temp_seqno.
+
+        <ls_file>-seqno = me->_seqno.
+
+        APPEND VALUE #( filename = <ls_file>-filename
+                        file_type = <ls_file>-mimetype
+                        file_size = <ls_file>-filesize
+                        content = <ls_file>-content ) TO lt_files.
+
+      ENDIF.
+
+    ENDLOOP.
+
     FREE me->mt_html.
 
     " Get new HTML with the last user question and a 'LLM typing' animation
@@ -1648,21 +1738,6 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
       ).
 
     ENDIF.
-
-    LOOP AT me->_files_t ASSIGNING FIELD-SYMBOL(<ls_file>).
-
-      IF <ls_file>-seqno = me->_temp_seqno.
-
-        <ls_file>-seqno = me->_seqno.
-
-        APPEND VALUE #( filename = <ls_file>-filename
-                        file_type = <ls_file>-mimetype
-                        file_size = <ls_file>-filesize
-                        content = <ls_file>-content ) TO lt_files.
-
-      ENDIF.
-
-    ENDLOOP.
 
     " Call LLM Chat API
     me->_o_api->chat(
@@ -1977,4 +2052,33 @@ CLASS YCL_AAI_UI_CHAT_V3 IMPLEMENTATION.
     mo_html_viewer->show_url( l_assigned ).
 
   ENDMETHOD.
+
+  METHOD _refresh_chat_messages.
+
+    DATA: l_url          TYPE c LENGTH 250,
+          l_assigned_url TYPE c LENGTH 250.
+
+    FREE me->mt_html.
+
+    " Get new HTML with the last attached file
+    me->mt_html = me->_get_html( ).
+
+    l_url = me->m_url.
+
+    mo_html_viewer->load_data(
+      EXPORTING
+        url          = l_url
+      IMPORTING
+        assigned_url = l_assigned_url
+      CHANGING
+        data_table   = me->mt_html
+    ).
+
+    " Update the chat to show the last user question
+    mo_html_viewer->show_url( l_assigned_url ).
+
+    cl_gui_cfw=>flush( ).
+
+  ENDMETHOD.
+
 ENDCLASS.
